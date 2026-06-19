@@ -1019,7 +1019,7 @@
   <header class="app-header">
     <div style="flex:1;">
       <h1>⚔️ Quest Ledger</h1>
-      <p style="color:var(--text-dim);font-size:0.9rem;">Co-Op Budget RPG · PWA · Cloud Sync Active ☁️</p>
+      <p id="appSubtitle" style="color:var(--text-dim);font-size:0.9rem;">Co-Op Budget RPG · PWA · Local Mode 💾</p>
     </div>
     <!-- [FIREBASE] Sound toggle + sync status dot -->
     <button class="sound-toggle-btn" id="soundToggleBtn" onclick="toggleSound()" title="Toggle sound effects">🔊</button>
@@ -1316,6 +1316,18 @@ function setSyncStatus(status) {
   const s = map[status] || map.offline;
   el.style.background = s.color;
   el.title = s.title;
+
+  // Update header subtitle dynamically based on connection status
+  const sub = document.getElementById('appSubtitle');
+  if (sub) {
+    if (status === 'ok' || status === 'syncing') {
+      sub.textContent = 'Co-Op Budget RPG · PWA · Cloud Sync Active ☁️';
+    } else if (FIREBASE_ENABLED) {
+      sub.textContent = 'Co-Op Budget RPG · PWA · Connecting to Cloud... ☁️';
+    } else {
+      sub.textContent = 'Co-Op Budget RPG · PWA · Local Mode 💾';
+    }
+  }
 }
 
 // =============================================================================
