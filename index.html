@@ -1219,7 +1219,6 @@
 // Strategy: last-write-wins with 500 ms debounce on writes.
 // Anonymous auth is used — no login required.
 // =============================================================================
-const FIREBASE_ENABLED = true;
 const firebaseConfig = {
   apiKey:            "YOUR_API_KEY",
   authDomain:        "YOUR_AUTH_DOMAIN",
@@ -1229,6 +1228,7 @@ const firebaseConfig = {
   appId:             "YOUR_APP_ID",
   measurementId:     "YOUR_MEASUREMENT_ID"
 };
+const FIREBASE_ENABLED = firebaseConfig.apiKey !== "YOUR_API_KEY" && firebaseConfig.apiKey !== "";
 
 let db = null, auth = null;
 let syncEnabled = true, syncTimeout = null;
@@ -1668,31 +1668,7 @@ function renderAll() {
   renderSimulator();     // [P4-F13]
 }
 
-function renderPlayers() {
-  const s=state.settings;
-  // renderPlayers is now fully dynamic — just update synergy
-  document.getElementById('synergyLevel').textContent = state.synergy.level;
-  document.getElementById('p1Level').textContent = p1.level;
-  document.getElementById('p1XP').textContent    = p1.xp;
-  document.getElementById('p1Next').textContent  = p1.level*(s.levelUpBase);
-  document.getElementById('p1Bar').style.width   = Math.min(100,(p1.xp/(p1.level*s.levelUpBase))*100)+'%';
-  document.getElementById('p2Level').textContent = p2.level;
-  document.getElementById('p2XP').textContent    = p2.xp;
-  document.getElementById('p2Next').textContent  = p2.level*(s.levelUpBase);
-  document.getElementById('p2Bar').style.width   = Math.min(100,(p2.xp/(p2.level*s.levelUpBase))*100)+'%';
-  document.getElementById('synergyLevel').textContent = state.synergy.level;
-  document.getElementById('p1Name').textContent  = s.p1Name;
-  document.getElementById('p2Name').textContent  = s.p2Name;
-  document.getElementById('p1AvatarEl').childNodes[0].textContent = s.p1Avatar;
-  document.getElementById('p2AvatarEl').childNodes[0].textContent = s.p2Avatar;
-  const p1Sel=document.getElementById('txnPlayer').options[0]; if(p1Sel) p1Sel.textContent=`${s.p1Avatar} ${s.p1Name}`;
-  const p2Sel=document.getElementById('txnPlayer').options[1]; if(p2Sel) p2Sel.textContent=`${s.p2Avatar} ${s.p2Name}`;
-  // [P3-F9] Resolve and display unlockable titles
-  const t1El = document.getElementById('p1Title');
-  const t2El = document.getElementById('p2Title');
-  if (t1El) t1El.textContent = resolvePlayerTitle('p1');
-  if (t2El) t2El.textContent = resolvePlayerTitle('p2');
-}
+
 
 function renderStreak() {
   document.getElementById('streakCount').textContent      = state.streak.count;
@@ -3353,7 +3329,7 @@ function injectPWAManifest() {
     name:             'Quest Ledger — Co-Op Budget RPG',
     short_name:       'Quest Ledger',
     description:      'Co-op household budget tracker with RPG mechanics and cloud sync.',
-    start_url:        '.',
+    start_url:        window.location.origin + window.location.pathname,
     display:          'standalone',
     orientation:      'portrait-primary',
     theme_color:      '#0a0a12',
