@@ -1185,7 +1185,23 @@
 <div class="modal-overlay" id="goalModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">🎯 New Quest</div><div class="form-grid"><div class="form-group"><label>Quest Name</label><input type="text" id="goalName"></div><div class="form-row"><div class="form-group"><label>Target (PKR)</label><input type="number" id="goalTarget"></div><div class="form-group"><label>Current Saved</label><input type="number" id="goalCurrent" value="0"></div></div><div class="form-row"><div class="form-group"><label>Target Date</label><input type="date" id="goalTargetDate"></div><div class="form-group"><label>Monthly Contribution</label><input type="number" id="goalMonthlyContribution" value="0"></div></div></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeGoalModal()">Cancel</button><button class="btn btn-primary" onclick="addGoal()">Create</button></div></div></div>
 <div class="modal-overlay" id="budgetModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Budget Limits — <span id="budgetModalMonth"></span></div><div class="budget-copy-row" style="margin-bottom:12px;"><button class="btn btn-secondary" onclick="copyPreviousMonthBudgets()">📋 Copy Previous Month</button></div><div id="budgetInputs"></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeBudgetModal()">Cancel</button><button class="btn btn-primary" onclick="saveBudgets()">Save</button></div></div></div>
 <div class="modal-overlay" id="importModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">📥 Import Data</div><textarea id="importData" placeholder='{"transactions":[],...}' style="width:100%;height:160px;background:var(--bg-deep);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text-main);font-family:var(--font-mono);font-size:0.85rem;resize:vertical;"></textarea><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button><button class="btn btn-primary" onclick="importData()">Import</button></div></div></div>
-<div class="modal-overlay" id="settingsModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Settings</div><div style="display:flex;gap:8px;margin-bottom:18px;"><button class="btn btn-secondary settings-tab-btn active" onclick="switchSettingsTab('formulas',this)">🧪 Formulas</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('display',this)">🎨 Display</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('quicklogs',this)">⚡ Quick Logs</button></div><div id="settingsTab-players" style="display:none;"></div><div id="settingsTab-formulas"><div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;padding:10px;background:rgba(168,85,247,0.06);border-radius:8px;border:1px solid rgba(168,85,247,0.15);">👤 To add, rename or remove players, use the <strong>⚔️ Manage Players</strong> button on the main dashboard.</div><div class="form-row"><div class="form-group"><label>XP per Log</label><input type="number" id="sXpPerLog"></div><div class="form-group"><label>Level-Up Base</label><input type="number" id="sLevelUpBase"></div></div><div class="form-row"><div class="form-group"><label>Streak Cap</label><input type="number" id="sStreakCap"></div><div class="form-group"><label>Synergy XP/Log</label><input type="number" id="sSynergyXp"></div></div></div><div id="settingsTab-display" style="display:none;"><div class="form-row"><div class="form-group"><label>Currency Symbol</label><input type="text" id="sCurrencySymbol"></div><div class="form-group"><label>Currency Code</label><input type="text" id="sCurrencyCode"></div></div></div>
+<div class="modal-overlay" id="settingsModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Settings</div><div style="display:flex;gap:8px;margin-bottom:18px;"><button class="btn btn-secondary settings-tab-btn active" onclick="switchSettingsTab('formulas',this)">🧪 Formulas</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('display',this)">🎨 Display</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('quicklogs',this)">⚡ Quick Logs</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('cloudsync',this)">☁️ Cloud Sync</button></div><div id="settingsTab-players" style="display:none;"></div><div id="settingsTab-formulas"><div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;padding:10px;background:rgba(168,85,247,0.06);border-radius:8px;border:1px solid rgba(168,85,247,0.15);">👤 To add, rename or remove players, use the <strong>⚔️ Manage Players</strong> button on the main dashboard.</div><div class="form-row"><div class="form-group"><label>XP per Log</label><input type="number" id="sXpPerLog"></div><div class="form-group"><label>Level-Up Base</label><input type="number" id="sLevelUpBase"></div></div><div class="form-row"><div class="form-group"><label>Streak Cap</label><input type="number" id="sStreakCap"></div><div class="form-group"><label>Synergy XP/Log</label><input type="number" id="sSynergyXp"></div></div></div><div id="settingsTab-display" style="display:none;"><div class="form-row"><div class="form-group"><label>Currency Symbol</label><input type="text" id="sCurrencySymbol"></div><div class="form-group"><label>Currency Code</label><input type="text" id="sCurrencyCode"></div></div></div>
+<div id="settingsTab-cloudsync" style="display:none;">
+  <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">Configure your own Firebase Firestore credentials to sync your budget between devices safely without committing secrets to GitHub.</p>
+  <div class="form-grid">
+    <div class="form-group"><label>API Key</label><input type="text" id="fbApiKey" placeholder="AIzaSy..."></div>
+    <div class="form-group"><label>Project ID</label><input type="text" id="fbProjectId" placeholder="your-firebase-project-id"></div>
+    <div class="form-group"><label>App ID</label><input type="text" id="fbAppId" placeholder="1:12345:web:abcdef"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Auth Domain</label><input type="text" id="fbAuthDomain" placeholder="(auto-fills if empty)"></div>
+      <div class="form-group"><label>Storage Bucket</label><input type="text" id="fbStorageBucket" placeholder="(auto-fills if empty)"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Messaging Sender ID</label><input type="text" id="fbMessagingSenderId" placeholder="e.g., 8264455..."></div>
+      <div class="form-group"><label>Measurement ID (Optional)</label><input type="text" id="fbMeasurementId" placeholder="G-..."></div>
+    </div>
+  </div>
+</div>
 <!-- [P2-F12] Quick Logs editor tab -->
 <div id="settingsTab-quicklogs" style="display:none;">
   <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">Edit, reorder, add or remove quick-log shortcuts. Changes apply immediately on Save.</p>
@@ -1219,7 +1235,14 @@
 // Strategy: last-write-wins with 500 ms debounce on writes.
 // Anonymous auth is used — no login required.
 // =============================================================================
-const firebaseConfig = {
+let customFirebaseConfig = null;
+try {
+  customFirebaseConfig = JSON.parse(localStorage.getItem('questLedgerFirebaseConfig'));
+} catch (e) {
+  console.warn('Could not parse local Firebase config');
+}
+
+const firebaseConfig = customFirebaseConfig || {
   apiKey:            "YOUR_API_KEY",
   authDomain:        "YOUR_AUTH_DOMAIN",
   projectId:         "YOUR_PROJECT_ID",
@@ -2588,6 +2611,20 @@ function openSettingsModal(){
   document.getElementById('sSynergyXp').value      = state.settings.synergyXpPerLog;
   document.getElementById('sCurrencySymbol').value = state.settings.currencySymbol;
   renderQlEditor();
+
+  // Populate Firebase Settings
+  let cfg = {};
+  try {
+    cfg = JSON.parse(localStorage.getItem('questLedgerFirebaseConfig')) || {};
+  } catch(e) {}
+  document.getElementById('fbApiKey').value            = cfg.apiKey || '';
+  document.getElementById('fbProjectId').value         = cfg.projectId || '';
+  document.getElementById('fbAppId').value             = cfg.appId || '';
+  document.getElementById('fbAuthDomain').value        = cfg.authDomain || '';
+  document.getElementById('fbStorageBucket').value     = cfg.storageBucket || '';
+  document.getElementById('fbMessagingSenderId').value = cfg.messagingSenderId || '';
+  document.getElementById('fbMeasurementId').value     = cfg.measurementId || '';
+
   // Default to Formulas tab
   document.querySelectorAll('[id^=settingsTab-]').forEach(el=>el.style.display='none');
   document.getElementById('settingsTab-formulas').style.display='block';
@@ -2605,8 +2642,46 @@ function saveSettings(){
   state.settings.currencySymbol      = document.getElementById('sCurrencySymbol').value.trim()||'₨';
   if(!Array.isArray(state.settings.quickLogs)) state.settings.quickLogs = DEFAULT_QUICK_LOGS;
   state.settings.quickLogs = state.settings.quickLogs.filter(q=>q.label&&q.cat);
+
+  // Save Firebase Credentials
+  const fbApiKey            = document.getElementById('fbApiKey').value.trim();
+  const fbProjectId         = document.getElementById('fbProjectId').value.trim();
+  const fbAppId             = document.getElementById('fbAppId').value.trim();
+  const fbAuthDomain        = document.getElementById('fbAuthDomain').value.trim();
+  const fbStorageBucket     = document.getElementById('fbStorageBucket').value.trim();
+  const fbMessagingSenderId = document.getElementById('fbMessagingSenderId').value.trim();
+  const fbMeasurementId     = document.getElementById('fbMeasurementId').value.trim();
+
+  const prevCfgStr = localStorage.getItem('questLedgerFirebaseConfig');
+  let reloadNeeded = false;
+
+  if (fbApiKey && fbProjectId && fbAppId) {
+    const fbConfig = {
+      apiKey:            fbApiKey,
+      projectId:         fbProjectId,
+      appId:             fbAppId,
+      authDomain:        fbAuthDomain || `${fbProjectId}.firebaseapp.com`,
+      storageBucket:     fbStorageBucket || `${fbProjectId}.firebasestorage.app`,
+      messagingSenderId: fbMessagingSenderId || '',
+      measurementId:     fbMeasurementId || ''
+    };
+    const newCfgStr = JSON.stringify(fbConfig);
+    if (newCfgStr !== prevCfgStr) {
+      localStorage.setItem('questLedgerFirebaseConfig', newCfgStr);
+      reloadNeeded = true;
+    }
+  } else if (!fbApiKey && prevCfgStr) {
+    localStorage.removeItem('questLedgerFirebaseConfig');
+    reloadNeeded = true;
+  }
+
   saveState(); renderAll(); closeSettingsModal();
   showToast('Settings saved','success');
+
+  if (reloadNeeded) {
+    showToast('Re-initializing Firebase Sync (reloading)...','success');
+    setTimeout(() => location.reload(), 1200);
+  }
 }
 function switchSettingsTab(tab,btn){
   document.querySelectorAll('[id^=settingsTab-]').forEach(el=>el.style.display='none');
