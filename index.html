@@ -411,6 +411,28 @@
     gap: 12px;
     flex-wrap: wrap;
   }
+
+  /* Co‑op / Cloud status badge – glass‑morphism */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.8rem;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.3s, color 0.3s;
+  }
+  [data-theme="dark"] .status-badge {
+    background: rgba(0,0,0,0.25);
+    border-color: rgba(255,255,255,0.3);
+  }
   @media (max-width: 1100px) {
     .main-grid {
       grid-template-columns: 1fr;
@@ -441,7 +463,7 @@
     }
     .player-card {
       width: 100%;
-      max-width: 320px;
+      max-width: 460px;
     }
     .settings-tabs {
       flex-wrap: wrap !important;
@@ -480,9 +502,9 @@
       display: none !important;
     }
   }
-  @media (max-width: 360px) {
-    .form-row {
-      grid-template-columns: 1fr;
+  @media (max-width: 500px) {
+    .form-row, .forecast-settings-row {
+      grid-template-columns: 1fr !important;
     }
   }
   .split-grid {
@@ -1246,6 +1268,7 @@
       </div>
       <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">🌙</button>
       <button class="btn btn-secondary" onclick="openSettingsModal()" style="padding:10px 16px;font-size:1.1rem;">⚙️</button>
+      <div id="coopStatusBadge" class="status-badge" aria-label="Current mode"></div>
     </div>
   </header>
 
@@ -1401,7 +1424,7 @@
 <div class="modal-overlay" id="goalModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">🎯 New Quest</div><div class="form-grid"><div class="form-group"><label>Quest Name</label><input type="text" id="goalName"></div><div class="form-row"><div class="form-group"><label>Target (PKR)</label><input type="number" id="goalTarget"></div><div class="form-group"><label>Current Saved</label><input type="number" id="goalCurrent" value="0"></div></div><div class="form-row"><div class="form-group"><label>Target Date</label><input type="date" id="goalTargetDate"></div><div class="form-group"><label>Monthly Contribution</label><input type="number" id="goalMonthlyContribution" value="0"></div></div></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeGoalModal()">Cancel</button><button class="btn btn-primary" onclick="addGoal()">Create</button></div></div></div>
 <div class="modal-overlay" id="budgetModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Budget Limits — <span id="budgetModalMonth"></span></div><div class="budget-copy-row" style="margin-bottom:12px;"><button class="btn btn-secondary" onclick="copyPreviousMonthBudgets()">📋 Copy Previous Month</button></div><div id="budgetInputs"></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeBudgetModal()">Cancel</button><button class="btn btn-primary" onclick="saveBudgets()">Save</button></div></div></div>
 <div class="modal-overlay" id="importModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">📥 Import Data</div><textarea id="importData" placeholder='{"transactions":[],...}' style="width:100%;height:160px;background:var(--bg-deep);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text-main);font-family:var(--font-mono);font-size:0.85rem;resize:vertical;"></textarea><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button><button class="btn btn-primary" onclick="importData()">Import</button></div></div></div>
-<div class="modal-overlay" id="settingsModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Settings</div><div class="settings-tabs" style="display:flex;gap:8px;margin-bottom:18px;"><button class="btn btn-secondary settings-tab-btn active" onclick="switchSettingsTab('formulas',this)">🧪 Formulas</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('display',this)">🎨 Display</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('quicklogs',this)">⚡ Quick Logs</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('cloudsync',this)">☁️ Cloud Sync</button></div><div id="settingsTab-players" style="display:none;"></div><div id="settingsTab-formulas"><div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;padding:10px;background:rgba(168,85,247,0.06);border-radius:8px;border:1px solid rgba(168,85,247,0.15);">👤 To add, rename or remove players, use the <strong>⚔️ Manage Players</strong> button on the main dashboard.</div><div class="form-row"><div class="form-group"><label>XP per Log</label><input type="number" id="sXpPerLog"></div><div class="form-group"><label>Level-Up Base</label><input type="number" id="sLevelUpBase"></div></div><div class="form-row"><div class="form-group"><label>Streak Cap</label><input type="number" id="sStreakCap"></div><div class="form-group"><label>Synergy XP/Log</label><input type="number" id="sSynergyXp"></div></div></div><div id="settingsTab-display" style="display:none;"><div class="form-row"><div class="form-group"><label>Currency Symbol</label><input type="text" id="sCurrencySymbol"></div><div class="form-group"><label>Currency Code</label><input type="text" id="sCurrencyCode"></div></div></div>
+<div class="modal-overlay" id="settingsModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Settings</div><div class="settings-tabs" style="display:flex;gap:8px;margin-bottom:18px;"><button class="btn btn-secondary settings-tab-btn active" onclick="switchSettingsTab('formulas',this)">🧪 Formulas</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('display',this)">🎨 Display</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('quicklogs',this)">⚡ Quick Logs</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('cloudsync',this)">☁️ Cloud Sync</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('coop',this)">⚔️ Co-Op Mode</button></div><div id="settingsTab-players" style="display:none;"></div><div id="settingsTab-formulas"><div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;padding:10px;background:rgba(168,85,247,0.06);border-radius:8px;border:1px solid rgba(168,85,247,0.15);">👤 To add, rename or remove players, use the <strong>⚔️ Manage Players</strong> button on the main dashboard.</div><div class="form-row"><div class="form-group"><label>XP per Log</label><input type="number" id="sXpPerLog"></div><div class="form-group"><label>Level-Up Base</label><input type="number" id="sLevelUpBase"></div></div><div class="form-row"><div class="form-group"><label>Streak Cap</label><input type="number" id="sStreakCap"></div><div class="form-group"><label>Synergy XP/Log</label><input type="number" id="sSynergyXp"></div></div></div><div id="settingsTab-display" style="display:none;"><div class="form-row"><div class="form-group"><label>Currency Symbol</label><input type="text" id="sCurrencySymbol"></div><div class="form-group"><label>Currency Code</label><input type="text" id="sCurrencyCode"></div></div></div>
 <div id="settingsTab-cloudsync" style="display:none;">
   <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">Configure your own Firebase Firestore credentials to sync your budget between devices safely without committing secrets to GitHub.</p>
   
@@ -1418,7 +1441,7 @@
   </div>
 
   <div class="form-grid">
-    <div class="form-group"><label>API Key</label><input type="text" id="fbApiKey" placeholder="AIzaSy..."></div>
+    <div class="form-group"><label>API Key</label><input type="text" id="fbApiKey" placeholder="YOUR_FIREBASE_API_KEY"></div>
     <div class="form-group"><label>Project ID</label><input type="text" id="fbProjectId" placeholder="your-firebase-project-id"></div>
     <div class="form-group"><label>App ID</label><input type="text" id="fbAppId" placeholder="1:12345:web:abcdef"></div>
     <div class="form-row">
@@ -1439,7 +1462,33 @@
   </div>
   <div id="qlEditorRows"></div>
   <button type="button" class="ql-add-btn" onclick="qlAddRow()">+ Add Shortcut</button>
-</div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button><button class="btn btn-primary" onclick="saveSettings()">Save</button></div></div></div>
+</div>
+<!-- [Co-Op Mode] Co-Op tab -->
+<div id="settingsTab-coop" style="display:none;">
+  <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">Sync your budget and quest ledger in real-time with a partner using their Google account email.</p>
+  <div style="margin-bottom:16px; padding:12px; background:rgba(30,41,59,0.3); border:1px solid rgba(224,175,104,0.15); border-radius:10px;">
+    <div style="font-weight:700; color:var(--text-main); margin-bottom:8px; font-size:0.9rem; display:flex; align-items:center; gap:6px;">
+      <span>⚔️</span> Party Status
+    </div>
+    <div id="coopMembersList" style="font-size:0.85rem; color:var(--text-dim); line-height:1.6; margin-bottom:12px;">
+      Checking co-op status...
+    </div>
+    <div id="coopInviteSection" style="display:none;">
+      <div class="form-group">
+        <label>Invite Partner (Enter Gmail)</label>
+        <div style="display:flex;gap:8px;">
+          <input type="email" id="coopPartnerEmail" placeholder="partner@gmail.com" style="flex:1;">
+          <button type="button" class="btn btn-primary" onclick="invitePartner()" style="padding:6px 12px; font-size:0.8rem; width:auto; white-space:nowrap;">⚔️ Add Partner</button>
+        </div>
+      </div>
+    </div>
+    <div id="coopActiveSection" style="display:none; margin-top:8px;">
+      <button type="button" class="btn btn-danger" onclick="leaveOrRemoveCoop()" id="coopLeaveBtn" style="padding:6px 12px; font-size:0.8rem; width:auto;">Leave Party</button>
+    </div>
+  </div>
+</div>
+<div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button><button class="btn btn-primary" onclick="saveSettings()">Save</button></div></div></div>
+<div class="modal-overlay" id="coopInviteModal"><div class="modal" style="max-width:400px; text-align:center;"><div class="modal-title" style="font-size:1.2rem; font-weight:800; margin-bottom:12px; color:var(--accent-purple);">⚔️ Co-Op Invite Received!</div><div style="font-size:4rem; margin-bottom:16px; animation: floatSword 3s ease-in-out infinite;">✉️</div><p style="font-size:0.9rem; color:var(--text-main); margin-bottom:18px; line-height:1.5;">User <strong id="inviteOwnerEmail" style="color:var(--accent-cyan);">owner@gmail.com</strong> has invited you to share their budget ledger.</p><div class="modal-actions" style="display:flex; flex-direction:column; gap:10px; margin-top:20px;"><button class="btn btn-primary" id="coopAcceptBtn" onclick="acceptCoopInvite()" style="width:100%;">⚔️ Accept & Sync Budgets</button><button class="btn btn-secondary" onclick="closeCoopInviteModal()" style="width:100%;">Decline</button></div></div></div>
 <div class="modal-overlay" id="avatarPickerModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">🎭 Choose Avatar</div><div id="avatarPickerTarget" style="display:none;"></div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;" id="avatarGrid"></div><div class="form-group"><label>Custom emoji:</label><input type="text" id="customAvatarInput" maxlength="4"></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeAvatarPicker()">Cancel</button><button class="btn btn-primary" onclick="confirmAvatarPick()">Use</button></div></div></div>
 <div class="modal-overlay" id="txnEditModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">✏️ Edit Transaction</div><input type="hidden" id="editTxnId"><div class="form-group" style="margin-bottom:12px;"><label>Description</label><input type="text" id="editTxnDesc"></div><div class="form-row" style="margin-bottom:12px;"><div class="form-group"><label>Amount</label><input type="number" id="editTxnAmount"></div><div class="form-group"><label>Date</label><input type="date" id="editTxnDate"></div></div><div class="form-row"><div class="form-group"><label>Category</label><select id="editTxnCategory"></select></div><div class="form-group"><label>Player</label><select id="editTxnPlayer"></select></div></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeTxnEditModal()">Cancel</button><button class="btn btn-primary" onclick="saveTxnEdit()">Save</button></div></div></div>
 
@@ -1464,6 +1513,9 @@ let firebaseConfig = null;
 let FIREBASE_ENABLED = false;
 
 let db = null, auth = null;
+let activeLedgerId = null;
+let activeLedgerOwnerEmail = null;
+let pendingInviteLedgerId = null;
 let syncEnabled = true, syncTimeout = null;
 let _cloudListenerActive = false; // prevent duplicate listeners on hot-reload
 let localModeBypass = false;
@@ -1544,8 +1596,45 @@ function initFirebaseSync(config) {
         if (settingsSignInBtn) settingsSignInBtn.style.display = 'none';
         if (settingsSignOutBtn) settingsSignOutBtn.style.display = 'inline-block';
 
+        // Co-Op Ledger Targeting
+        activeLedgerId = localStorage.getItem('activeLedgerId') || user.uid;
+
         setSyncStatus('ok');
         startCloudListener();
+
+        // Define function to update the Co‑op / Cloud status badge
+        function updateCoopStatusBadge() {
+          const badge = document.getElementById('coopStatusBadge');
+          if (!badge) return;
+          const uid = auth.currentUser ? auth.currentUser.uid : null;
+          const mode = (activeLedgerId && uid && activeLedgerId !== uid) ? 'Co‑op' : 'Cloud';
+          badge.textContent = mode;
+          badge.title = mode === 'Co‑op' ? 'Viewing a shared Co‑op ledger' : 'Personal Cloud ledger';
+        }
+
+        // Call on logout to reset badge
+        auth.onAuthStateChanged(user => {
+          if (!user) {
+            const badge = document.getElementById('coopStatusBadge');
+            if (badge) badge.textContent = '';
+          }
+        });
+        updateCoopStatusBadge();
+
+        // Check for pending co-op invites
+        if (db) {
+          db.collection('questLedger')
+            .where('memberEmails', 'array-contains', user.email)
+            .get()
+            .then(snapshot => {
+              snapshot.forEach(doc => {
+                if (doc.id !== user.uid && doc.id !== activeLedgerId) {
+                  showInviteReceivedModal(doc.id, doc.data().ownerEmail);
+                }
+              });
+            })
+            .catch(err => console.warn('Error checking co-op invites:', err));
+        }
       } else {
         // User logged out
         if (overlay) {
@@ -1745,6 +1834,7 @@ const DEFAULT_GOALS = [
 // STATE — unchanged, except goalContributions guaranteed present
 // =============================================================================
 let state = {
+  partnerEmail: null,
   transactions: [],
   goals: [...DEFAULT_GOALS],
   budgets: {},
@@ -1817,14 +1907,29 @@ function syncToCloud() {
   setSyncStatus('syncing');
   syncTimeout = setTimeout(() => {
     const user = auth.currentUser;
-    if (!user) { setSyncStatus('offline'); return; }
-    db.collection('questLedger').doc(user.uid).set({
-      state:       JSON.stringify(state),
-      lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
-      uid:         user.uid
-    })
-    .then(()  => setSyncStatus('ok'))
-    .catch(err => { console.warn('Sync write error:', err); setSyncStatus('error'); });
+    if (!user || !activeLedgerId) { setSyncStatus('offline'); return; }
+
+    if (activeLedgerId === user.uid) {
+      // Owner write: write full document metadata
+      const payload = {
+        state:       JSON.stringify(state),
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+        uid:         user.uid,
+        ownerEmail:  user.email,
+        memberEmails: state.partnerEmail ? [user.email, state.partnerEmail] : [user.email]
+      };
+      db.collection('questLedger').doc(user.uid).set(payload)
+      .then(()  => setSyncStatus('ok'))
+      .catch(err => { console.warn('Sync write error:', err); setSyncStatus('error'); });
+    } else {
+      // Guest write: update only state and timestamp to prevent rewriting owner metadata
+      db.collection('questLedger').doc(activeLedgerId).update({
+        state:       JSON.stringify(state),
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+      })
+      .then(()  => setSyncStatus('ok'))
+      .catch(err => { console.warn('Sync write error:', err); setSyncStatus('error'); });
+    }
   }, 500);
 }
 
@@ -1837,13 +1942,26 @@ function startCloudListener() {
 
   _cloudListenerActive = true;
 
-  const docRef = db.collection('questLedger').doc(user.uid);
+  const docRef = db.collection('questLedger').doc(activeLedgerId);
 
   cloudListenerUnsubscribe = docRef.onSnapshot(doc => {
     // Ignore if we're mid-write (syncEnabled=false) to prevent echo loops
     if (!syncEnabled) return;
 
     if (doc.exists && doc.data() && doc.data().state) {
+      // Sync Co-Op party emails
+      if (doc.data().ownerEmail) {
+        activeLedgerOwnerEmail = doc.data().ownerEmail;
+      }
+      if (doc.data().memberEmails && doc.data().memberEmails.length > 1) {
+        const partner = doc.data().memberEmails.find(e => e !== doc.data().ownerEmail);
+        if (partner && activeLedgerId === user.uid) {
+          state.partnerEmail = partner;
+        }
+      } else if (activeLedgerId === user.uid) {
+        state.partnerEmail = null;
+      }
+
       let remote;
       try { remote = JSON.parse(doc.data().state); }
       catch(e) { console.warn('Could not parse remote state'); return; }
@@ -1862,6 +1980,7 @@ function startCloudListener() {
       if (!state.budgets)                  state.budgets = {};
       if (!state.achievements)             state.achievements = [];
       if (!state.settings.quickLogs)       state.settings.quickLogs = DEFAULT_QUICK_LOGS;
+      if (state.partnerEmail === undefined) state.partnerEmail = null;
 
       localStorage.setItem('questLedgerData', JSON.stringify(state));
       renderAll();
@@ -1871,7 +1990,15 @@ function startCloudListener() {
     }
   }, err => {
     console.warn('Cloud listener error:', err);
-    // Reset listener active so it can retry if re-authenticated
+    // Gracefully handle access revocation or removal from ledger by owner
+    if (activeLedgerId !== user.uid && (err.code === 'permission-denied' || err.message.toLowerCase().includes('permission'))) {
+      showToast('⚠️ Co-Op Access Revoked by Owner.', 'error');
+      activeLedgerId = user.uid;
+      activeLedgerOwnerEmail = null;
+      localStorage.removeItem('activeLedgerId');
+      setTimeout(() => location.reload(), 2000);
+      return;
+    }
     _cloudListenerActive = false;
     setSyncStatus('error');
   });
@@ -3035,6 +3162,125 @@ function switchSettingsTab(tab,btn){
   if(btn) btn.classList.add('active');
   // [P2-F12] Re-render editor when Quick Logs tab is opened
   if(tab==='quicklogs') renderQlEditor();
+  if(tab==='coop') renderCoopSettings();
+}
+
+function showInviteReceivedModal(ledgerId, ownerEmail) {
+  pendingInviteLedgerId = ledgerId;
+  const emailEl = document.getElementById('inviteOwnerEmail');
+  if (emailEl) emailEl.textContent = ownerEmail;
+  const modal = document.getElementById('coopInviteModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeCoopInviteModal() {
+  const modal = document.getElementById('coopInviteModal');
+  if (modal) modal.classList.remove('active');
+  pendingInviteLedgerId = null;
+}
+
+function acceptCoopInvite() {
+  if (!pendingInviteLedgerId) return;
+  localStorage.setItem('activeLedgerId', pendingInviteLedgerId);
+  showToast('Joined Co-Op Shared Ledger! Syncing...', 'success');
+  closeCoopInviteModal();
+  setTimeout(() => location.reload(), 1000);
+}
+
+function renderCoopSettings() {
+  const membersList = document.getElementById('coopMembersList');
+  const inviteSection = document.getElementById('coopInviteSection');
+  const activeSection = document.getElementById('coopActiveSection');
+  if (!membersList || !inviteSection || !activeSection) return;
+
+  const user = auth ? auth.currentUser : null;
+  if (!user) {
+    membersList.innerHTML = '<span style="color:var(--accent-crimson);">You must be logged in with Google to use Co-Op Mode.</span>';
+    inviteSection.style.display = 'none';
+    activeSection.style.display = 'none';
+    return;
+  }
+
+  if (activeLedgerId) {
+    if (activeLedgerId === user.uid) {
+      const partnerEmail = state.partnerEmail || '';
+      let html = `👤 Owner: <strong>${user.email} (You)</strong><br>`;
+      if (partnerEmail) {
+        html += `⚔️ Party member: <strong>${partnerEmail}</strong> (Access granted)`;
+        inviteSection.style.display = 'none';
+        activeSection.style.display = 'block';
+        document.getElementById('coopLeaveBtn').textContent = '⚔️ Disband Party (Remove Partner)';
+      } else {
+        html += `<em>Party status: Solo. Invite a partner below to share this ledger.</em>`;
+        inviteSection.style.display = 'block';
+        activeSection.style.display = 'none';
+      }
+      membersList.innerHTML = html;
+    } else {
+      let html = `👤 Owner: <strong>${activeLedgerOwnerEmail || 'Partner'}</strong><br>`;
+      html += `⚔️ Party member: <strong>${user.email} (You)</strong> (Guest access)`;
+      membersList.innerHTML = html;
+      inviteSection.style.display = 'none';
+      activeSection.style.display = 'block';
+      document.getElementById('coopLeaveBtn').textContent = '🚪 Leave Co-Op Party';
+    }
+  } else {
+    membersList.innerHTML = 'Not connected to cloud sync.';
+    inviteSection.style.display = 'none';
+    activeSection.style.display = 'none';
+  }
+}
+
+function invitePartner() {
+  const emailInput = document.getElementById('coopPartnerEmail');
+  if (!emailInput) return;
+  const partnerEmail = emailInput.value.trim().toLowerCase();
+  
+  if (!partnerEmail || !partnerEmail.includes('@')) {
+    showToast('Please enter a valid partner email address.', 'error');
+    return;
+  }
+  
+  const user = auth ? auth.currentUser : null;
+  if (!user) {
+    showToast('You must be logged in to invite a partner.', 'error');
+    return;
+  }
+  
+  if (partnerEmail === user.email.toLowerCase()) {
+    showToast('You cannot invite yourself.', 'error');
+    return;
+  }
+
+  state.partnerEmail = partnerEmail;
+  localStorage.setItem('questLedgerData', JSON.stringify(state));
+  showToast('Partner added to party! Syncing with cloud...', 'success');
+  syncToCloud();
+  renderCoopSettings();
+  emailInput.value = '';
+}
+
+function leaveOrRemoveCoop() {
+  const user = auth ? auth.currentUser : null;
+  if (!user) return;
+
+  if (activeLedgerId === user.uid) {
+    if (confirm('Are you sure you want to disband the party? This will revoke your partner\'s access to this budget.')) {
+      state.partnerEmail = null;
+      localStorage.setItem('questLedgerData', JSON.stringify(state));
+      showToast('Party disbanded. Syncing changes...', 'success');
+      syncToCloud();
+      renderCoopSettings();
+    }
+  } else {
+    if (confirm('Are you sure you want to leave this Co-Op shared ledger? You will revert back to your personal budget.')) {
+      localStorage.removeItem('activeLedgerId');
+      activeLedgerId = user.uid;
+      activeLedgerOwnerEmail = null;
+      showToast('Left shared ledger. Reverting to personal budget...', 'success');
+      setTimeout(() => location.reload(), 1200);
+    }
+  }
 }
 
 // [P2-F12] setupQuickLogs — reads from state.settings.quickLogs (customisable)
