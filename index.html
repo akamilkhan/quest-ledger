@@ -291,7 +291,13 @@
   .streak-icon { font-size: 1.4rem; animation: flame 1s ease-in-out infinite alternate; }
   @keyframes flame { from { transform: scale(1); } to { transform: scale(1.15); } }
   .main-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
-  @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 1100px) {
+    .main-grid {
+      grid-template-columns: 1fr;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+  }
   .panel {
     background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
     padding: 20px; margin-bottom: 20px;
