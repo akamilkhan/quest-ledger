@@ -1231,34 +1231,49 @@
 <script>
 // =============================================================================
 // FIREBASE CONFIG — live project credentials
-// Cloud sync is ENABLED. Both devices share the same Firestore document.
-// Strategy: last-write-wins with 500 ms debounce on writes.
-// Anonymous auth is used — no login required.
-// =============================================================================
-let customFirebaseConfig = null;
-try {
-  customFirebaseConfig = JSON.parse(localStorage.getItem('questLedgerFirebaseConfig'));
-} catch (e) {
-  console.warn('Could not parse local Firebase config');
-}
-
-const firebaseConfig = customFirebaseConfig || {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_AUTH_DOMAIN",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId:             "YOUR_APP_ID",
-  measurementId:     "YOUR_MEASUREMENT_ID"
-};
-const FIREBASE_ENABLED = firebaseConfig.apiKey !== "YOUR_API_KEY" && firebaseConfig.apiKey !== "";
+let firebaseConfig = null;
+let FIREBASE_ENABLED = false;
 
 let db = null, auth = null;
 let syncEnabled = true, syncTimeout = null;
 let _cloudListenerActive = false; // prevent duplicate listeners on hot-reload
 
-try {
-  if (FIREBASE_ENABLED) {
+async function loadFirebaseConfig() {
+  // 1. Try fetching from Netlify Serverless Function
+  try {
+    const res = await fetch('/.netlify/functions/get-config');
+    if (res.ok) {
+      const netlifyConfig = await res.json();
+      if (netlifyConfig && netlifyConfig.apiKey) {
+        return netlifyConfig;
+      }
+    }
+  } catch (e) {
+    // Expected to fail locally or when offline without Netlify dev server
+  }
+
+  // 2. Fall back to localStorage
+  try {
+    const localConfig = JSON.parse(localStorage.getItem('questLedgerFirebaseConfig'));
+    if (localConfig && localConfig.apiKey) {
+      return localConfig;
+    }
+  } catch (e) {}
+
+  // 3. Fall back to hardcoded placeholders (disabled)
+  return null;
+}
+
+function initFirebaseSync(config) {
+  if (!config || !config.apiKey || config.apiKey === "YOUR_API_KEY") {
+    setSyncStatus('offline');
+    return;
+  }
+
+  firebaseConfig = config;
+  FIREBASE_ENABLED = true;
+
+  try {
     // Guard against double-init in dev environments
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
@@ -1266,25 +1281,25 @@ try {
     db   = firebase.firestore();
     auth = firebase.auth();
 
-    // Enable Firestore offline persistence so the app keeps working
-    // even when the device temporarily loses internet.
-    // Note: only one tab can hold persistence at a time — that's fine for this app.
     db.enablePersistence()
       .catch(err => {
-        // FAILED_PRECONDITION: another tab already holds persistence — harmless
-        // UNIMPLEMENTED: browser doesn't support IndexedDB — graceful fallback
         if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
           console.warn('Firestore persistence error:', err);
         }
       });
 
-    // Sign in anonymously — each browser session gets its own UID
-    // but all sessions write to the SAME shared document, so both
-    // devices stay in sync automatically.
-    auth.signInAnonymously().catch(err => console.warn('Auth error:', err));
+    // Start cloud listener
+    startCloudListener();
+
+    auth.signInAnonymously().catch(err => {
+      console.warn('Auth error:', err);
+      setSyncStatus('error');
+    });
+
+  } catch(e) {
+    console.warn('Firebase init failed — running in offline-only mode:', e);
+    setSyncStatus('offline');
   }
-} catch(e) {
-  console.warn('Firebase init failed — running in offline-only mode:', e);
 }
 
 // Visual sync status indicator (shown in header)
@@ -3634,7 +3649,7 @@ function loadState(){
   }
 }
 
-function init(){
+async function init(){
   loadState();
   applyStoredTheme();
 
@@ -3657,8 +3672,13 @@ function init(){
   // Form submit
   document.getElementById('questForm').addEventListener('submit',e=>{ e.preventDefault(); submitTransaction(); });
 
-  // Cloud listener (no-op when FIREBASE_ENABLED=false)
-  startCloudListener();
+  // Load configuration and initialize Firebase Sync
+  const config = await loadFirebaseConfig();
+  if (config) {
+    initFirebaseSync(config);
+  } else {
+    setSyncStatus('offline');
+  }
 
   // [P2-F11] Initialise voice recognition (hides mic if unsupported)
   initVoice();
