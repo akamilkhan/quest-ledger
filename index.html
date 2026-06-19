@@ -399,11 +399,53 @@
   .mom-change.up { color: var(--accent-crimson); }
   .mom-change.down { color: var(--accent-green); }
   .viewing-past-badge { display: inline-block; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: var(--accent-amber); font-size: 0.7rem; font-family: var(--font-mono); padding: 4px 10px; border-radius: 999px; margin-left: 10px; }
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
   @media (max-width: 768px) {
     .players-bar { grid-template-columns: 1fr; }
     .synergy-orb-wrap { display: flex; justify-content: center; order: -1; margin-bottom: 10px; }
     .form-row { grid-template-columns: 1fr; }
     .app-header h1 { font-size: 1.8rem; }
+  }
+  @media (max-width: 600px) {
+    .app-header {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 12px;
+      padding: 16px 0;
+    }
+    .header-controls {
+      justify-content: center;
+      width: 100%;
+    }
+    .settings-tabs {
+      flex-wrap: wrap !important;
+    }
+    .settings-tabs button {
+      flex: 1 1 calc(50% - 8px);
+      text-align: center;
+      padding: 8px 6px;
+      font-size: 0.8rem;
+    }
+  }
+  @media (max-width: 400px) {
+    .login-card {
+      padding: 24px 16px;
+    }
+    .login-title {
+      font-size: 1.8rem;
+    }
+    .login-subtitle {
+      margin-bottom: 24px;
+    }
+    .settings-tabs button {
+      flex: 1 1 100%;
+    }
   }
   .quick-log-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
   .quick-log-btn {
@@ -1140,22 +1182,24 @@
       <h1>⚔️ Quest Ledger</h1>
       <p id="appSubtitle" style="color:var(--text-dim);font-size:0.9rem;">Co-Op Budget RPG · PWA · Local Mode 💾</p>
     </div>
-    <!-- [FIREBASE] Sound toggle + sync status dot -->
-    <button class="sound-toggle-btn" id="soundToggleBtn" onclick="toggleSound()" title="Toggle sound effects">🔊</button>
-    <!-- Sync status indicator: green=synced, amber=syncing, red=error, grey=offline -->
-    <div id="syncStatusDot" title="Sync status" style="
-      width:10px; height:10px; border-radius:50%;
-      background:#64748b; flex-shrink:0; margin-top:2px;
-      box-shadow:0 0 6px currentColor; transition:background 0.4s;
-      align-self:center;
-    "></div>
-    <div id="userProfileContainer" style="display:none; align-items:center; gap:8px; margin-right:12px; margin-left:8px;">
-      <img id="userAvatar" src="" alt="Avatar" style="width:28px; height:28px; border-radius:50%; border:2px solid var(--accent); object-fit:cover;">
-      <span id="userName" style="font-size:0.85rem; color:var(--text-main); font-weight:600; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;"></span>
-      <button class="btn btn-secondary" onclick="signOut()" style="padding:4px 8px; font-size:0.75rem; border-color:rgba(239,68,68,0.3); color:#f87171;">Exit</button>
+    <div class="header-controls">
+      <!-- [FIREBASE] Sound toggle + sync status dot -->
+      <button class="sound-toggle-btn" id="soundToggleBtn" onclick="toggleSound()" title="Toggle sound effects">🔊</button>
+      <!-- Sync status indicator: green=synced, amber=syncing, red=error, grey=offline -->
+      <div id="syncStatusDot" title="Sync status" style="
+        width:10px; height:10px; border-radius:50%;
+        background:#64748b; flex-shrink:0;
+        box-shadow:0 0 6px currentColor; transition:background 0.4s;
+        align-self:center;
+      "></div>
+      <div id="userProfileContainer" style="display:none; align-items:center; gap:8px;">
+        <img id="userAvatar" src="" alt="Avatar" style="width:28px; height:28px; border-radius:50%; border:2px solid var(--accent); object-fit:cover;">
+        <span id="userName" style="font-size:0.85rem; color:var(--text-main); font-weight:600; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;"></span>
+        <button class="btn btn-secondary" onclick="signOut()" style="padding:4px 8px; font-size:0.75rem; border-color:rgba(239,68,68,0.3); color:#f87171;">Exit</button>
+      </div>
+      <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">🌙</button>
+      <button class="btn btn-secondary" onclick="openSettingsModal()" style="padding:10px 16px;font-size:1.1rem;">⚙️</button>
     </div>
-    <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">🌙</button>
-    <button class="btn btn-secondary" onclick="openSettingsModal()" style="padding:10px 16px;font-size:1.1rem;">⚙️</button>
   </header>
 
   <div class="streak-banner" id="streakBanner">
@@ -1309,7 +1353,7 @@
 <div class="modal-overlay" id="goalModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">🎯 New Quest</div><div class="form-grid"><div class="form-group"><label>Quest Name</label><input type="text" id="goalName"></div><div class="form-row"><div class="form-group"><label>Target (PKR)</label><input type="number" id="goalTarget"></div><div class="form-group"><label>Current Saved</label><input type="number" id="goalCurrent" value="0"></div></div><div class="form-row"><div class="form-group"><label>Target Date</label><input type="date" id="goalTargetDate"></div><div class="form-group"><label>Monthly Contribution</label><input type="number" id="goalMonthlyContribution" value="0"></div></div></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeGoalModal()">Cancel</button><button class="btn btn-primary" onclick="addGoal()">Create</button></div></div></div>
 <div class="modal-overlay" id="budgetModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Budget Limits — <span id="budgetModalMonth"></span></div><div class="budget-copy-row" style="margin-bottom:12px;"><button class="btn btn-secondary" onclick="copyPreviousMonthBudgets()">📋 Copy Previous Month</button></div><div id="budgetInputs"></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeBudgetModal()">Cancel</button><button class="btn btn-primary" onclick="saveBudgets()">Save</button></div></div></div>
 <div class="modal-overlay" id="importModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">📥 Import Data</div><textarea id="importData" placeholder='{"transactions":[],...}' style="width:100%;height:160px;background:var(--bg-deep);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text-main);font-family:var(--font-mono);font-size:0.85rem;resize:vertical;"></textarea><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button><button class="btn btn-primary" onclick="importData()">Import</button></div></div></div>
-<div class="modal-overlay" id="settingsModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Settings</div><div style="display:flex;gap:8px;margin-bottom:18px;"><button class="btn btn-secondary settings-tab-btn active" onclick="switchSettingsTab('formulas',this)">🧪 Formulas</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('display',this)">🎨 Display</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('quicklogs',this)">⚡ Quick Logs</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('cloudsync',this)">☁️ Cloud Sync</button></div><div id="settingsTab-players" style="display:none;"></div><div id="settingsTab-formulas"><div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;padding:10px;background:rgba(168,85,247,0.06);border-radius:8px;border:1px solid rgba(168,85,247,0.15);">👤 To add, rename or remove players, use the <strong>⚔️ Manage Players</strong> button on the main dashboard.</div><div class="form-row"><div class="form-group"><label>XP per Log</label><input type="number" id="sXpPerLog"></div><div class="form-group"><label>Level-Up Base</label><input type="number" id="sLevelUpBase"></div></div><div class="form-row"><div class="form-group"><label>Streak Cap</label><input type="number" id="sStreakCap"></div><div class="form-group"><label>Synergy XP/Log</label><input type="number" id="sSynergyXp"></div></div></div><div id="settingsTab-display" style="display:none;"><div class="form-row"><div class="form-group"><label>Currency Symbol</label><input type="text" id="sCurrencySymbol"></div><div class="form-group"><label>Currency Code</label><input type="text" id="sCurrencyCode"></div></div></div>
+<div class="modal-overlay" id="settingsModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Settings</div><div class="settings-tabs" style="display:flex;gap:8px;margin-bottom:18px;"><button class="btn btn-secondary settings-tab-btn active" onclick="switchSettingsTab('formulas',this)">🧪 Formulas</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('display',this)">🎨 Display</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('quicklogs',this)">⚡ Quick Logs</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('cloudsync',this)">☁️ Cloud Sync</button></div><div id="settingsTab-players" style="display:none;"></div><div id="settingsTab-formulas"><div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;padding:10px;background:rgba(168,85,247,0.06);border-radius:8px;border:1px solid rgba(168,85,247,0.15);">👤 To add, rename or remove players, use the <strong>⚔️ Manage Players</strong> button on the main dashboard.</div><div class="form-row"><div class="form-group"><label>XP per Log</label><input type="number" id="sXpPerLog"></div><div class="form-group"><label>Level-Up Base</label><input type="number" id="sLevelUpBase"></div></div><div class="form-row"><div class="form-group"><label>Streak Cap</label><input type="number" id="sStreakCap"></div><div class="form-group"><label>Synergy XP/Log</label><input type="number" id="sSynergyXp"></div></div></div><div id="settingsTab-display" style="display:none;"><div class="form-row"><div class="form-group"><label>Currency Symbol</label><input type="text" id="sCurrencySymbol"></div><div class="form-group"><label>Currency Code</label><input type="text" id="sCurrencyCode"></div></div></div>
 <div id="settingsTab-cloudsync" style="display:none;">
   <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">Configure your own Firebase Firestore credentials to sync your budget between devices safely without committing secrets to GitHub.</p>
   
