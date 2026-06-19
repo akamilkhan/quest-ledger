@@ -294,7 +294,7 @@
   @media (max-width: 1100px) {
     .main-grid {
       grid-template-columns: 1fr;
-      max-width: 680px;
+      max-width: 460px;
       margin: 0 auto;
     }
   }
@@ -414,7 +414,7 @@
   @media (max-width: 1100px) {
     .main-grid {
       grid-template-columns: 1fr;
-      max-width: 540px;
+      max-width: 460px;
       margin: 0 auto;
     }
   }
@@ -482,6 +482,15 @@
   }
   @media (max-width: 360px) {
     .form-row {
+      grid-template-columns: 1fr;
+    }
+  }
+  .split-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 600px) {
+    .split-grid {
       grid-template-columns: 1fr;
     }
   }
@@ -1364,7 +1373,7 @@
         <div id="hpBars" class="fade-target"></div>
       </div>
 
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+      <div class="split-grid" style="gap: 20px;">
         <div class="panel"><div class="panel-title"><span class="icon">📊</span> Spending Split</div><div class="chart-container fade-target"><canvas id="spendingChart"></canvas></div></div>
         <div class="panel"><div class="panel-title"><span class="icon">🏆</span> Co-Op Leaderboard</div><div id="leaderboard"></div></div>
       </div>
