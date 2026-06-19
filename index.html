@@ -997,10 +997,129 @@
     transition: background 0.15s;
   }
   .pm-add-btn:hover { background: rgba(34,197,94,0.08); }
+
+  /* RPG Google Login Overlay */
+  .login-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: radial-gradient(circle at center, rgba(17, 24, 39, 0.96), rgba(3, 7, 18, 0.99));
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(12px);
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+  }
+  .login-card {
+    background: rgba(30, 41, 59, 0.45);
+    border: 2px solid rgba(224, 175, 104, 0.3);
+    border-radius: 20px;
+    padding: 40px;
+    width: 90%;
+    max-width: 440px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(224, 175, 104, 0.05);
+    backdrop-filter: blur(10px);
+    animation: loginFadeIn 0.8s ease-out;
+  }
+  @keyframes loginFadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .login-title {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #f3f4f6;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    font-family: 'Outfit', sans-serif;
+  }
+  .login-subtitle {
+    font-size: 0.95rem;
+    color: #9ca3af;
+    margin-bottom: 32px;
+  }
+  .login-art {
+    font-size: 4.5rem;
+    margin-bottom: 24px;
+    filter: drop-shadow(0 0 15px rgba(224, 175, 104, 0.4));
+    animation: floatSword 3s ease-in-out infinite;
+  }
+  @keyframes floatSword {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-8px) rotate(2deg); }
+  }
+  .google-login-btn {
+    background: #ffffff;
+    color: #1f2937;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .google-login-btn:hover {
+    background: #f3f4f6;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(224, 175, 104, 0.25);
+  }
+  .google-login-btn:active {
+    transform: translateY(0);
+  }
+  .google-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .offline-play-btn {
+    background: transparent;
+    color: #9ca3af;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+    border-radius: 12px;
+    padding: 10px 24px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 16px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .offline-play-btn:hover {
+    background: rgba(156, 163, 175, 0.08);
+    color: #f3f4f6;
+  }
 </style>
 </head>
 <body>
 <div class="bg-particles"></div>
+
+<!-- RPG Google Login Overlay -->
+<div id="loginOverlay" class="login-overlay" style="display: none;">
+  <div class="login-card">
+    <div class="login-art">⚔️🛡️</div>
+    <div class="login-title">Quest Ledger</div>
+    <div class="login-subtitle">Co-Op Budget RPG Adventure</div>
+    <button class="google-login-btn" onclick="signInWithGoogle()">
+      <svg class="google-icon" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <button class="offline-play-btn" onclick="playOffline()">
+      Play Offline (Local Mode)
+    </button>
+  </div>
+</div>
 
 <!-- [P7-F5] Offline indicator pill -->
 <div class="offline-pill" id="offlinePill">📡 Offline — changes will sync when reconnected</div>
@@ -1030,6 +1149,11 @@
       box-shadow:0 0 6px currentColor; transition:background 0.4s;
       align-self:center;
     "></div>
+    <div id="userProfileContainer" style="display:none; align-items:center; gap:8px; margin-right:12px; margin-left:8px;">
+      <img id="userAvatar" src="" alt="Avatar" style="width:28px; height:28px; border-radius:50%; border:2px solid var(--accent); object-fit:cover;">
+      <span id="userName" style="font-size:0.85rem; color:var(--text-main); font-weight:600; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;"></span>
+      <button class="btn btn-secondary" onclick="signOut()" style="padding:4px 8px; font-size:0.75rem; border-color:rgba(239,68,68,0.3); color:#f87171;">Exit</button>
+    </div>
     <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">🌙</button>
     <button class="btn btn-secondary" onclick="openSettingsModal()" style="padding:10px 16px;font-size:1.1rem;">⚙️</button>
   </header>
@@ -1188,6 +1312,19 @@
 <div class="modal-overlay" id="settingsModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Settings</div><div style="display:flex;gap:8px;margin-bottom:18px;"><button class="btn btn-secondary settings-tab-btn active" onclick="switchSettingsTab('formulas',this)">🧪 Formulas</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('display',this)">🎨 Display</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('quicklogs',this)">⚡ Quick Logs</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('cloudsync',this)">☁️ Cloud Sync</button></div><div id="settingsTab-players" style="display:none;"></div><div id="settingsTab-formulas"><div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;padding:10px;background:rgba(168,85,247,0.06);border-radius:8px;border:1px solid rgba(168,85,247,0.15);">👤 To add, rename or remove players, use the <strong>⚔️ Manage Players</strong> button on the main dashboard.</div><div class="form-row"><div class="form-group"><label>XP per Log</label><input type="number" id="sXpPerLog"></div><div class="form-group"><label>Level-Up Base</label><input type="number" id="sLevelUpBase"></div></div><div class="form-row"><div class="form-group"><label>Streak Cap</label><input type="number" id="sStreakCap"></div><div class="form-group"><label>Synergy XP/Log</label><input type="number" id="sSynergyXp"></div></div></div><div id="settingsTab-display" style="display:none;"><div class="form-row"><div class="form-group"><label>Currency Symbol</label><input type="text" id="sCurrencySymbol"></div><div class="form-group"><label>Currency Code</label><input type="text" id="sCurrencyCode"></div></div></div>
 <div id="settingsTab-cloudsync" style="display:none;">
   <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">Configure your own Firebase Firestore credentials to sync your budget between devices safely without committing secrets to GitHub.</p>
+  
+  <!-- Cloud Sync Profile & Connection Status -->
+  <div style="margin-bottom:16px; padding:12px; background:rgba(30,41,59,0.3); border:1px solid rgba(224,175,104,0.15); border-radius:10px;">
+    <div style="font-weight:700; color:var(--text-main); margin-bottom:6px; display:flex; align-items:center; gap:8px; font-size:0.9rem;">
+      <span>☁️</span> Google Account Sync
+    </div>
+    <div id="settingsAuthStatus" style="font-size:0.85rem; color:var(--text-dim); margin-bottom:10px;">Checking status...</div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-primary" id="settingsSignInBtn" onclick="signInWithGoogle()" style="padding:6px 12px; font-size:0.8rem; display:none; background:var(--accent); color:var(--bg-deep);">Sign In with Google</button>
+      <button class="btn btn-secondary" id="settingsSignOutBtn" onclick="signOut()" style="padding:6px 12px; font-size:0.8rem; display:none; border-color:rgba(239,68,68,0.3); color:#f87171;">Sign Out</button>
+    </div>
+  </div>
+
   <div class="form-grid">
     <div class="form-group"><label>API Key</label><input type="text" id="fbApiKey" placeholder="AIzaSy..."></div>
     <div class="form-group"><label>Project ID</label><input type="text" id="fbProjectId" placeholder="your-firebase-project-id"></div>
@@ -1237,6 +1374,8 @@ let FIREBASE_ENABLED = false;
 let db = null, auth = null;
 let syncEnabled = true, syncTimeout = null;
 let _cloudListenerActive = false; // prevent duplicate listeners on hot-reload
+let localModeBypass = false;
+let cloudListenerUnsubscribe = null;
 
 async function loadFirebaseConfig() {
   // 1. Try fetching from Netlify Serverless Function
@@ -1260,7 +1399,7 @@ async function loadFirebaseConfig() {
     }
   } catch (e) {}
 
-  // 3. Fall back to hardcoded placeholders (disabled)
+  // 3. No fallback (rely on Netlify serverless config or manual user config)
   return null;
 }
 
@@ -1288,18 +1427,106 @@ function initFirebaseSync(config) {
         }
       });
 
-    // Start cloud listener
-    startCloudListener();
+    // Listen for auth state changes
+    auth.onAuthStateChanged(user => {
+      const overlay = document.getElementById('loginOverlay');
+      const profileContainer = document.getElementById('userProfileContainer');
+      const avatarImg = document.getElementById('userAvatar');
+      const nameSpan = document.getElementById('userName');
+      
+      const settingsAuthStatus = document.getElementById('settingsAuthStatus');
+      const settingsSignInBtn = document.getElementById('settingsSignInBtn');
+      const settingsSignOutBtn = document.getElementById('settingsSignOutBtn');
 
-    auth.signInAnonymously().catch(err => {
-      console.warn('Auth error:', err);
-      setSyncStatus('error');
+      if (user) {
+        // User logged in
+        if (overlay) overlay.style.display = 'none';
+        if (profileContainer) profileContainer.style.display = 'flex';
+        if (avatarImg) avatarImg.src = user.photoURL || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23e0af68" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>';
+        if (nameSpan) nameSpan.textContent = user.displayName || user.email || 'Player';
+
+        if (settingsAuthStatus) {
+          settingsAuthStatus.innerHTML = `Connected as <strong>${user.displayName || user.email}</strong>`;
+          settingsAuthStatus.style.color = '#22c55e';
+        }
+        if (settingsSignInBtn) settingsSignInBtn.style.display = 'none';
+        if (settingsSignOutBtn) settingsSignOutBtn.style.display = 'inline-block';
+
+        setSyncStatus('ok');
+        startCloudListener();
+      } else {
+        // User logged out
+        if (overlay) {
+          overlay.style.display = localModeBypass ? 'none' : 'flex';
+        }
+        if (profileContainer) profileContainer.style.display = 'none';
+
+        if (settingsAuthStatus) {
+          settingsAuthStatus.textContent = 'Not connected to cloud sync.';
+          settingsAuthStatus.style.color = 'var(--text-dim)';
+        }
+        if (settingsSignInBtn) settingsSignInBtn.style.display = 'inline-block';
+        if (settingsSignOutBtn) settingsSignOutBtn.style.display = 'none';
+
+        // Unsubscribe from snapshot listeners on logout
+        if (cloudListenerUnsubscribe) {
+          cloudListenerUnsubscribe();
+          cloudListenerUnsubscribe = null;
+        }
+        _cloudListenerActive = false;
+        setSyncStatus('offline');
+      }
     });
 
   } catch(e) {
     console.warn('Firebase init failed — running in offline-only mode:', e);
     setSyncStatus('offline');
   }
+}
+
+// Google Sign-In function
+function signInWithGoogle() {
+  if (!auth) {
+    showToast('Firebase is not initialized or configured.', 'error');
+    return;
+  }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider)
+    .then(result => {
+      showToast('Logged in successfully!', 'success');
+      localModeBypass = false;
+      const overlay = document.getElementById('loginOverlay');
+      if (overlay) overlay.style.display = 'none';
+    })
+    .catch(err => {
+      console.error('Google Sign-in failed:', err);
+      showToast('Login failed: ' + err.message, 'error');
+    });
+}
+
+// Sign-Out function
+function signOut() {
+  if (!auth) return;
+  auth.signOut()
+    .then(() => {
+      showToast('Signed out successfully.', 'success');
+      localModeBypass = false;
+      const overlay = document.getElementById('loginOverlay');
+      if (overlay) overlay.style.display = 'flex';
+    })
+    .catch(err => {
+      console.error('Sign-out failed:', err);
+      showToast('Sign-out failed.', 'error');
+    });
+}
+
+// Play offline (local mode bypass)
+function playOffline() {
+  localModeBypass = true;
+  const overlay = document.getElementById('loginOverlay');
+  if (overlay) overlay.style.display = 'none';
+  setSyncStatus('offline');
+  showToast('Playing in local/offline mode.', 'success');
 }
 
 // Visual sync status indicator (shown in header)
@@ -1499,10 +1726,10 @@ function syncToCloud() {
   syncTimeout = setTimeout(() => {
     const user = auth.currentUser;
     if (!user) { setSyncStatus('offline'); return; }
-    db.collection('questLedger').doc('sharedState').set({
+    db.collection('questLedger').doc(user.uid).set({
       state:       JSON.stringify(state),
       lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
-      uid:         user.uid          // for debugging — not used in logic
+      uid:         user.uid
     })
     .then(()  => setSyncStatus('ok'))
     .catch(err => { console.warn('Sync write error:', err); setSyncStatus('error'); });
@@ -1512,50 +1739,49 @@ function syncToCloud() {
 function startCloudListener() {
   if (!FIREBASE_ENABLED || !db || !auth || _cloudListenerActive) return;
 
-  auth.onAuthStateChanged(user => {
-    if (!user) { setSyncStatus('offline'); return; }
-    setSyncStatus('ok');
+  const user = auth.currentUser;
+  if (!user) { setSyncStatus('offline'); return; }
+  setSyncStatus('ok');
 
-    // Guard against attaching the listener twice (e.g. hot-reload)
-    if (_cloudListenerActive) return;
-    _cloudListenerActive = true;
+  _cloudListenerActive = true;
 
-    const docRef = db.collection('questLedger').doc('sharedState');
+  const docRef = db.collection('questLedger').doc(user.uid);
 
-    docRef.onSnapshot(doc => {
-      // Ignore if we're mid-write (syncEnabled=false) to prevent echo loops
-      if (!syncEnabled) return;
+  cloudListenerUnsubscribe = docRef.onSnapshot(doc => {
+    // Ignore if we're mid-write (syncEnabled=false) to prevent echo loops
+    if (!syncEnabled) return;
 
-      if (doc.exists && doc.data() && doc.data().state) {
-        let remote;
-        try { remote = JSON.parse(doc.data().state); }
-        catch(e) { console.warn('Could not parse remote state'); return; }
+    if (doc.exists && doc.data() && doc.data().state) {
+      let remote;
+      try { remote = JSON.parse(doc.data().state); }
+      catch(e) { console.warn('Could not parse remote state'); return; }
 
-        // Only apply if remote differs from local to avoid unnecessary re-renders
-        const localJson  = JSON.stringify(state);
-        const remoteJson = JSON.stringify(remote);
-        if (remoteJson === localJson) return;
+      // Only apply if remote differs from local to avoid unnecessary re-renders
+      const localJson  = JSON.stringify(state);
+      const remoteJson = JSON.stringify(remote);
+      if (remoteJson === localJson) return;
 
-        // Merge: apply remote, then persist locally
-        syncEnabled = false;
-        state = remote;
+      // Merge: apply remote, then persist locally
+      syncEnabled = false;
+      state = remote;
 
-        // Ensure mandatory fields that older saves might be missing
-        if (!state.goalContributions)        state.goalContributions = [];
-        if (!state.budgets)                  state.budgets = {};
-        if (!state.achievements)             state.achievements = [];
-        if (!state.settings.quickLogs)       state.settings.quickLogs = DEFAULT_QUICK_LOGS;
+      // Ensure mandatory fields that older saves might be missing
+      if (!state.goalContributions)        state.goalContributions = [];
+      if (!state.budgets)                  state.budgets = {};
+      if (!state.achievements)             state.achievements = [];
+      if (!state.settings.quickLogs)       state.settings.quickLogs = DEFAULT_QUICK_LOGS;
 
-        localStorage.setItem('questLedgerData', JSON.stringify(state));
-        renderAll();
-        syncEnabled = true;
-        setSyncStatus('ok');
-        showToast('☁️ Synced from cloud', 'success');
-      }
-    }, err => {
-      console.warn('Cloud listener error:', err);
-      setSyncStatus('error');
-    });
+      localStorage.setItem('questLedgerData', JSON.stringify(state));
+      renderAll();
+      syncEnabled = true;
+      setSyncStatus('ok');
+      showToast('☁️ Synced from cloud', 'success');
+    }
+  }, err => {
+    console.warn('Cloud listener error:', err);
+    // Reset listener active so it can retry if re-authenticated
+    _cloudListenerActive = false;
+    setSyncStatus('error');
   });
 
   // Detect online/offline transitions

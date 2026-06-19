@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: questLedger
+    // Document ID: {userId} (matches the user's Auth UID)
+    // Fields:
+    //   - state: string (required) - Stringified JSON representing the full app state (budget, transactions, players)
+    //   - lastUpdated: timestamp (required) - Server timestamp when the document was last updated
+    //   - uid: string (required) - The user's Auth UID (must match userId and request.auth.uid)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the user owns the resource path
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Validate that the document contains only the allowed fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate required fields exist
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Verify UID matches auth user on create and update
+    function isUidValid() {
+      return request.resource.data.uid == request.auth.uid;
+    }
+
+    // Validate that lastUpdated is a timestamp
+    function isLastUpdatedValid() {
+      return request.resource.data.lastUpdated is timestamp;
+    }
+
+    // Domain validator for the questLedger document
+    function isValidStateDoc() {
+      return hasRequiredFields(['state', 'lastUpdated', 'uid']) &&
+             hasOnlyAllowedFields(['state', 'lastUpdated', 'uid']) &&
+             request.resource.data.state is string &&
+             request.resource.data.state.size() > 0 &&
+             request.resource.data.state.size() <= 1048576 && // Limit state payload to 1MB
+             isUidValid() &&
+             isLastUpdatedValid();
+    }
+
+    // Matches the questLedger collection
+    match /questLedger/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidStateDoc();
+      allow update: if isOwner(userId) && isValidStateDoc();
+      allow delete: if isOwner(userId);
+    }
+  }
+}

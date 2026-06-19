@@ -1,0 +1,16 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "auth": {
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Quest Ledger",
+        "supportEmail": "akamilkhan@gmail.com",
+        "authorizedRedirectUris": [
+          "https://quest-ledger-akamilkhan.netlify.app"
+        ]
+      }
+    }
+  }
+}
