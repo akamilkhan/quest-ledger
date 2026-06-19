@@ -12,13 +12,11 @@ service cloud.firestore {
     //   - state: string (required) - Stringified JSON representing the full app state (budget, transactions, players)
     //   - lastUpdated: timestamp (required) - Server timestamp when the document was last updated
     //   - uid: string (required) - The user's Auth UID (must match userId and request.auth.uid)
+    //   - ownerEmail: string (optional) - The email address of the ledger owner
+    //   - memberEmails: list of strings (optional) - List of emails allowed to sync this budget
     //
     // ===============================================================
 
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    
     // Check if the user is authenticated
     function isAuthenticated() {
       return request.auth != null;
@@ -27,6 +25,11 @@ service cloud.firestore {
     // Check if the user owns the resource path
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if the user's verified email is in the document's memberEmails list
+    function isEmailMember(data) {
+      return 'memberEmails' in data && data.memberEmails is list && request.auth.token.email in data.memberEmails;
     }
 
     // Validate that the document contains only the allowed fields
@@ -39,9 +42,14 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(fields);
     }
 
-    // Verify UID matches auth user on create and update
-    function isUidValid() {
+    // Verify UID matches auth user on creation
+    function isUidValidOnCreate() {
       return request.resource.data.uid == request.auth.uid;
+    }
+
+    // Verify UID is unchanged on updates
+    function isUidUnchanged() {
+      return request.resource.data.uid == resource.data.uid;
     }
 
     // Validate that lastUpdated is a timestamp
@@ -52,19 +60,26 @@ service cloud.firestore {
     // Domain validator for the questLedger document
     function isValidStateDoc() {
       return hasRequiredFields(['state', 'lastUpdated', 'uid']) &&
-             hasOnlyAllowedFields(['state', 'lastUpdated', 'uid']) &&
+             hasOnlyAllowedFields(['state', 'lastUpdated', 'uid', 'ownerEmail', 'memberEmails']) &&
              request.resource.data.state is string &&
              request.resource.data.state.size() > 0 &&
              request.resource.data.state.size() <= 1048576 && // Limit state payload to 1MB
-             isUidValid() &&
              isLastUpdatedValid();
     }
 
     // Matches the questLedger collection
     match /questLedger/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidStateDoc();
-      allow update: if isOwner(userId) && isValidStateDoc();
+      allow get: if isOwner(userId) || (isAuthenticated() && isEmailMember(resource.data));
+      allow list: if isAuthenticated();
+      
+      allow create: if (isOwner(userId) || (isAuthenticated() && isEmailMember(request.resource.data)))
+                    && isUidValidOnCreate()
+                    && isValidStateDoc();
+                    
+      allow update: if (isOwner(userId) || (isAuthenticated() && isEmailMember(resource.data)))
+                    && isUidUnchanged()
+                    && isValidStateDoc();
+                    
       allow delete: if isOwner(userId);
     }
   }

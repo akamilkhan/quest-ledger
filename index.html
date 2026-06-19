@@ -1564,7 +1564,11 @@ function initFirebaseSync(config) {
     db   = firebase.firestore();
     auth = firebase.auth();
 
-    db.enablePersistence()
+    // Use modern persistence via settings instead of deprecated enablePersistence()
+    try {
+      firebase.firestore().settings({ cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED });
+    } catch(e) { /* already set */ }
+    db.enableIndexedDbPersistence()
       .catch(err => {
         if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
           console.warn('Firestore persistence error:', err);
