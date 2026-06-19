@@ -1,0 +1,3645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Quest Ledger — Co-Op Budget RPG ⚔️</title>
+
+<!-- =====================================================================
+     PHASE 7 — PWA (Feature 5)
+     Single-file approach: manifest injected as inline <link> data URI.
+     Service worker registered via Blob URL so no separate .js file needed.
+     Offline: Firebase persistence (enabled in Phase Firebase) keeps data
+     available; the SW caches the app shell on first visit so the UI also
+     loads offline.
+===================================================================== -->
+
+<!-- PWA manifest as inline data URI -->
+<link rel="manifest" id="pwaManifest">
+
+<!-- Theme colour for browser chrome (Android/Chrome) -->
+<meta name="theme-color" content="#0a0a12">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- iOS Safari PWA support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quest Ledger">
+
+<!-- Favicon / home-screen icon via inline SVG data URI -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0a12'/%3E%3Ctext x='32' y='46' text-anchor='middle' font-size='36'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230a0a12'/%3E%3Ctext x='96' y='136' text-anchor='middle' font-size='108'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<style>
+  /* =====================================================================
+     PHASE 1 ADDITIONS (marked with [P1]):
+       - [P1-F2]  Sound toggle button & mute state in header
+       - [P1-F6]  Button press scale micro-interaction (CSS only)
+       - [P1-F17] Status ring styles on player avatars
+       - Light-theme icon fix for theme toggle
+     All original styles preserved exactly below.
+  ===================================================================== */
+
+  :root {
+    --bg-deep: #0a0a12;
+    --bg-panel: #12121f;
+    --bg-card: #1a1a2e;
+    --border: #2a2a45;
+    --accent-purple: #a855f7;
+    --accent-green: #22c55e;
+    --accent-amber: #f59e0b;
+    --accent-crimson: #ef4444;
+    --accent-cyan: #06b6d4;
+    --accent-pink: #ec4899;
+    --text-main: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-dark: #0f172a;
+    --font-mono: 'SF Mono', 'Fira Code', monospace;
+    --font-body: 'Segoe UI', system-ui, sans-serif;
+  }
+  body.light-theme {
+    --bg-deep: #f1f5f9;
+    --bg-panel: #ffffff;
+    --bg-card: #f8fafc;
+    --border: #cbd5e1;
+    --text-main: #1e293b;
+    --text-dim: #64748b;
+    --text-dark: #0f172a;
+  }
+  body.light-theme .hp-bar-bg { background: #e2e8f0; }
+  body.light-theme .xp-bar-wrap { background: #e2e8f0; }
+  body.light-theme .streak-banner { background: linear-gradient(135deg, rgba(168,85,247,0.1), rgba(6,182,212,0.08)); border-color: rgba(168,85,247,0.2); }
+  body.light-theme .synergy-orb { background: rgba(168,85,247,0.08); border-color: rgba(168,85,247,0.25); }
+  body.light-theme .synergy-inner { background: rgba(255,255,255,0.9); }
+  body.light-theme .player-card { background: #ffffff; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+  body.light-theme input, body.light-theme select, body.light-theme textarea {
+    background: #ffffff !important; border-color: #cbd5e1 !important; color: #1e293b !important;
+  }
+  body.light-theme .whatif-slider { background: #cbd5e1; }
+
+  /* --- [P1-F2] Sound toggle button --- */
+  .sound-toggle-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 8px;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 1rem;
+    transition: border-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+  }
+  .sound-toggle-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+  .sound-toggle-btn.muted { border-color: var(--accent-crimson); color: var(--accent-crimson); }
+
+  .theme-toggle-btn {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; font-size: 1rem; transition: all 0.2s; flex-shrink: 0;
+  }
+  .theme-toggle-btn:hover { border-color: var(--accent-amber); color: var(--accent-amber); }
+
+  /* --- [P1-F6] Micro-interactions: button press scale --- */
+  .btn:active             { transform: scale(0.96) !important; }
+  .quick-log-btn:active   { transform: scale(0.94) !important; }
+  .month-nav-btn:active   { transform: scale(0.92) !important; }
+  .sound-toggle-btn:active,
+  .theme-toggle-btn:active { transform: scale(0.92) !important; }
+
+  /* --- [P1-F6] HP bar icon pulse on new transaction --- */
+  @keyframes iconPulse {
+    0%   { transform: scale(1);    opacity: 1; }
+    40%  { transform: scale(1.45); opacity: 0.75; }
+    100% { transform: scale(1);    opacity: 1; }
+  }
+  .cat-icon-pulse {
+    display: inline-block;
+    animation: iconPulse 0.35s ease-out;
+  }
+
+  /* --- [P1-F17] Status rings on player avatars --- */
+  /*
+     The avatar div gets `position: relative` added in HTML.
+     The ring is an absolutely-positioned child ::after pseudo or a <span>.
+     We use a small <span class="status-ring"> injected by JS inside the avatar div.
+  */
+  .player-avatar { position: relative; } /* extend existing rule */
+  .status-ring {
+    position: absolute;
+    bottom: 1px; right: 1px;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-card); /* cutout matches card bg */
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+  .status-ring.green  { background: #22c55e; box-shadow: 0 0 5px #22c55e88; }
+  .status-ring.yellow { background: #f59e0b; box-shadow: 0 0 4px #f59e0b55; }
+  .status-ring.grey   { background: #475569; box-shadow: none; }
+
+  /* light-theme: ring border matches card bg */
+  body.light-theme .status-ring { border-color: #f8fafc; }
+
+  /* Confetti */
+  .confetti-piece {
+    position: fixed; top: -10px; width: 10px; height: 10px; opacity: 1;
+    animation: confetti-fall 3s ease-in forwards; z-index: 9999; pointer-events: none; border-radius: 2px;
+  }
+  @keyframes confetti-fall {
+    0%   { transform: translateY(0) rotate(0deg) scale(1);   opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg) scale(0.5); opacity: 0; }
+  }
+
+  /* Achievements */
+  .badges-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+  .badge-card {
+    background: var(--bg-deep); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 10px; text-align: center; transition: all 0.2s; position: relative; overflow: hidden;
+  }
+  .badge-card.unlocked { border-color: var(--accent-amber); background: rgba(245,158,11,0.06); }
+  .badge-card.locked { opacity: 0.45; filter: grayscale(0.6); }
+  .badge-icon { font-size: 2rem; margin-bottom: 6px; display: block; }
+  .badge-name { font-size: 0.72rem; font-weight: 700; }
+  .badge-desc { font-size: 0.62rem; color: var(--text-dim); line-height: 1.3; }
+  .badge-unlocked-label { font-size: 0.6rem; color: var(--accent-amber); font-family: var(--font-mono); margin-top: 5px; font-weight: 700; }
+
+  /* Weekly Challenge */
+  .challenge-card {
+    background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(6,182,212,0.05));
+    border: 1px solid rgba(168,85,247,0.25); border-radius: 14px; padding: 16px 18px; margin-bottom: 0;
+  }
+  .challenge-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-purple); font-weight: 700; margin-bottom: 6px; }
+  .challenge-desc { font-size: 0.9rem; font-weight: 600; margin-bottom: 10px; }
+  .challenge-bar-bg { background: rgba(255,255,255,0.08); border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 6px; }
+  .challenge-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent-purple), var(--accent-cyan)); transition: width 0.6s ease; }
+  .challenge-footer { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono); }
+
+  /* Party Stats */
+  .party-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 12px; }
+  .party-stat-card {
+    background: var(--bg-deep); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; text-align: center;
+  }
+  .party-stat-icon { font-size: 1.4rem; margin-bottom: 4px; }
+  .party-stat-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 800; }
+  .party-stat-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 2px; }
+
+  /* Search & filter */
+  .search-bar-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .search-input, .search-select {
+    background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 14px; color: var(--text-main); font-size: 0.85rem; outline: none;
+  }
+  .search-input:focus, .search-select:focus { border-color: var(--accent-purple); }
+
+  /* Drag drop goals */
+  .quest-goal { cursor: grab; transition: all 0.2s; }
+  .quest-goal:active { cursor: grabbing; }
+  .quest-goal.drag-over { border-color: var(--accent-cyan); background: rgba(6,182,212,0.06); transform: scale(1.01); }
+  .quest-goal.dragging { opacity: 0.45; transform: rotate(1deg); }
+
+  /* Undo/Redo toast */
+  .undo-bar {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 10px 18px; display: flex; align-items: center; gap: 12px;
+    font-size: 0.82rem; z-index: 9998; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: slideUp 0.25s ease; pointer-events: all;
+  }
+  @keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+  .undo-bar button { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--accent-cyan); padding: 4px 12px; cursor: pointer; font-size: 0.8rem; font-weight: 700; }
+  .undo-bar button:hover { background: rgba(6,182,212,0.1); border-color: var(--accent-cyan); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-deep);
+    color: var(--text-main);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .bg-particles {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0; overflow: hidden;
+  }
+  .bg-particles::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 20% 80%, rgba(168,85,247,0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(236,72,153,0.04) 0%, transparent 50%);
+  }
+  .app-container { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 20px; }
+  .app-header {
+    text-align: center; padding: 24px 0 16px; display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap;
+  }
+  .app-header h1 {
+    font-size: 2.6rem; font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan), var(--accent-pink));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    letter-spacing: -1px;
+  }
+  .players-bar {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center;
+    margin: 20px 0 24px;
+  }
+  .player-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px 20px; display: flex; align-items: center; gap: 14px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .player-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(168,85,247,0.15); }
+  .player-avatar {
+    width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; font-weight: 800; border: 3px solid; flex-shrink: 0; cursor: pointer;
+    /* position:relative added above for status ring */
+  }
+  .p1-avatar { border-color: var(--accent-cyan); background: rgba(6,182,212,0.15); color: var(--accent-cyan); }
+  .p2-avatar { border-color: var(--accent-pink); background: rgba(236,72,153,0.15); color: var(--accent-pink); }
+  .player-info { flex: 1; }
+  .player-name { font-weight: 700; font-size: 1.05rem; cursor: pointer; }
+  .player-role { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .xp-bar-wrap { width: 100%; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  .xp-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  .xp-bar-fill.p1 { background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); }
+  .xp-bar-fill.p2 { background: linear-gradient(90deg, var(--accent-pink), var(--accent-purple)); }
+  .synergy-orb {
+    width: 90px; height: 90px; border-radius: 50%;
+    background: conic-gradient(from 0deg, var(--accent-purple), var(--accent-cyan), var(--accent-pink), var(--accent-purple));
+    display: flex; align-items: center; justify-content: center;
+    position: relative; animation: spinOrb 8s linear infinite;
+    box-shadow: 0 0 30px rgba(168,85,247,0.3);
+  }
+  .synergy-orb::before {
+    content: ''; position: absolute; width: 78px; height: 78px; border-radius: 50%; background: var(--bg-deep);
+  }
+  .synergy-inner { position: relative; z-index: 1; text-align: center; }
+  .synergy-lvl { font-size: 1.4rem; font-weight: 800; color: var(--accent-purple); }
+  .synergy-label { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  @keyframes spinOrb { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .streak-banner {
+    background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(239,68,68,0.1));
+    border: 1px solid rgba(245,158,11,0.3); border-radius: 12px;
+    padding: 12px 20px; display: flex; align-items: center; justify-content: center; gap: 12px;
+    margin-bottom: 24px; font-family: var(--font-mono);
+  }
+  .streak-icon { font-size: 1.4rem; animation: flame 1s ease-in-out infinite alternate; }
+  @keyframes flame { from { transform: scale(1); } to { transform: scale(1.15); } }
+  .main-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
+  @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .panel-title {
+    font-size: 1.05rem; font-weight: 700; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .form-grid { display: grid; gap: 12px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group label {
+    display: block; font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 6px; font-weight: 600;
+  }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; color: var(--text-main); font-size: 0.95rem; outline: none;
+    font-family: var(--font-body);
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: none; border-radius: 10px; padding: 12px 20px; font-size: 0.95rem; font-weight: 700;
+    cursor: pointer; transition: transform 0.15s, box-shadow 0.2s, background 0.2s; font-family: var(--font-body);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+    color: white; width: 100%; box-shadow: 0 4px 16px rgba(168,85,247,0.3);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(168,85,247,0.4); }
+  .btn-secondary {
+    background: var(--bg-deep); border: 1px solid var(--border); color: var(--text-dim);
+    font-size: 0.8rem; padding: 8px 14px;
+  }
+  .btn-danger { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: var(--accent-crimson); }
+  .hp-category { margin-bottom: 14px; }
+  .hp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .hp-bar-bg { height: 18px; background: rgba(255,255,255,0.05); border-radius: 9px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+  .hp-bar-fill { height: 100%; border-radius: 9px; transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; }
+  /* Sheen inside bar — pointer-events:none so it never intercepts clicks */
+  .hp-bar-fill::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 60%);
+    border-radius: 9px; pointer-events: none;
+  }
+  .hp-green { background: linear-gradient(90deg, #16a34a, #22c55e); }
+  .hp-yellow { background: linear-gradient(90deg, #ca8a04, #f59e0b); }
+  .hp-red { background: linear-gradient(90deg, #dc2626, #ef4444); }
+  .hp-critical { animation: criticalPulse 1s ease-in-out infinite; }
+  @keyframes criticalPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .quest-goal {
+    background: var(--bg-deep); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .quest-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .quest-bar-bg { height: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; }
+  .quest-bar-fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--accent-purple), var(--accent-cyan)); transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .forecast-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .forecast-settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .whatif-slider { width: 100%; height: 6px; border-radius: 3px; -webkit-appearance: none; background: rgba(255,255,255,0.08); cursor: pointer; }
+  .whatif-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan)); cursor: pointer; }
+  .goal-timeline-chart { height: 180px; margin-top: 10px; }
+  .txn-list { max-height: 400px; overflow-y: auto; }
+  .txn-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.2s; border-radius: 8px; }
+  .txn-item:hover { background: rgba(255,255,255,0.03); }
+  .chart-container { height: 280px; }
+  .leaderboard-row {
+    display: flex; align-items: center; gap: 12px; padding: 12px;
+    background: var(--bg-deep); border-radius: 10px; margin-bottom: 8px;
+  }
+  .lb-rank { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; }
+  .lb-rank.gold { background: rgba(245,158,11,0.2); color: var(--accent-amber); }
+  .lb-rank.silver { background: rgba(148,163,184,0.2); color: #94a3b8; }
+  .floating-text {
+    position: fixed; pointer-events: none; font-weight: 800; font-family: var(--font-mono);
+    font-size: 1.3rem; z-index: 9999; animation: floatUp 1.2s ease-out forwards;
+    text-shadow: 0 0 20px currentColor;
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-80px) scale(1.3); }
+  }
+  .data-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 10000;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 20px; display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10001;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .modal-overlay.active { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto;
+    transform: scale(0.95); transition: transform 0.3s;
+  }
+  .modal-overlay.active .modal { transform: scale(1); }
+  .mom-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .mom-card { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .mom-change.up { color: var(--accent-crimson); }
+  .mom-change.down { color: var(--accent-green); }
+  .viewing-past-badge { display: inline-block; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: var(--accent-amber); font-size: 0.7rem; font-family: var(--font-mono); padding: 4px 10px; border-radius: 999px; margin-left: 10px; }
+  @media (max-width: 768px) {
+    .players-bar { grid-template-columns: 1fr; }
+    .synergy-orb-wrap { display: flex; justify-content: center; order: -1; margin-bottom: 10px; }
+    .form-row { grid-template-columns: 1fr; }
+    .app-header h1 { font-size: 1.8rem; }
+  }
+  .quick-log-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .quick-log-btn {
+    background: var(--bg-deep); border: 1px solid var(--border); border-radius: 40px;
+    padding: 8px 16px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    display: inline-flex; align-items: center; gap: 6px;
+    color: #ffffff;
+  }
+  .quick-log-btn:hover { border-color: var(--accent-cyan); background: rgba(6,182,212,0.1); transform: translateY(-1px); color: #ffffff; }
+  /* .status-ring inline styles kept in JS for existing compat */
+  .sparkline { width: 60px; height: 24px; margin-left: 8px; display: inline-block; vertical-align: middle; }
+  .gradient-text { background: linear-gradient(135deg, var(--accent-amber), var(--accent-pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* month nav buttons */
+  .month-nav-btn {
+    background: var(--bg-deep); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 6px; width: 28px; height: 28px; display: inline-flex; align-items: center;
+    justify-content: center; cursor: pointer; font-size: 0.8rem;
+    transition: border-color 0.2s, color 0.2s, transform 0.1s;
+  }
+  .month-nav-btn:hover { border-color: var(--accent-purple); color: var(--accent-purple); }
+
+  /* =====================================================================
+     PHASE 2 ADDITIONS (marked with [P2]):
+       - [P2-F11] Voice input button & listening animation
+       - [P2-F14] Predictive pre-fill hint pill under description field
+       - [P2-F12] Customisable quick logs (stored in state.settings.quickLogs)
+                  + Quick Log editor tab inside Settings modal
+  ===================================================================== */
+
+  /* --- [P2-F11] Voice input button --- */
+  .voice-btn {
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: 44px; height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 1.15rem;
+    transition: border-color 0.2s, background 0.2s, transform 0.1s;
+    flex-shrink: 0; align-self: flex-end;
+  }
+  .voice-btn:hover  { border-color: var(--accent-cyan); background: rgba(6,182,212,0.08); }
+  .voice-btn:active { transform: scale(0.93); }
+  .voice-btn.listening {
+    border-color: var(--accent-crimson);
+    background: rgba(239,68,68,0.12);
+    animation: voicePulse 1s ease-in-out infinite;
+  }
+  @keyframes voicePulse {
+    0%, 100% { box-shadow: 0 0 0   0   rgba(239,68,68,0.4); }
+    50%       { box-shadow: 0 0 0 8px rgba(239,68,68,0);     }
+  }
+  .voice-status-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.78rem; color: var(--accent-cyan);
+    min-height: 20px; font-family: var(--font-mono);
+  }
+  .voice-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--accent-crimson);
+    display: none; animation: voiceDot 0.7s ease-in-out infinite alternate;
+  }
+  .voice-dot.active { display: inline-block; }
+  @keyframes voiceDot { from { opacity: 1; } to { opacity: 0.2; } }
+
+  /* --- [P2-F14] Predictive hint pill --- */
+  .prefill-hint {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.25);
+    border-radius: 20px; padding: 4px 10px;
+    font-size: 0.75rem; color: var(--accent-purple);
+    cursor: pointer; transition: background 0.2s, border-color 0.2s;
+    font-family: var(--font-mono);
+  }
+  .prefill-hint:hover { background: rgba(168,85,247,0.18); border-color: rgba(168,85,247,0.5); }
+  .prefill-hint-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; min-height: 26px; }
+
+  /* --- [P2-F12] Quick-log pill edit controls inside quick-log area --- */
+  .ql-manage-btn {
+    background: none; border: 1px dashed var(--border); border-radius: 40px;
+    padding: 6px 12px; font-size: 0.78rem; color: var(--text-dim);
+    cursor: pointer; transition: border-color 0.15s, color 0.15s;
+  }
+  .ql-manage-btn:hover { border-color: var(--accent-amber); color: var(--accent-amber); }
+
+  /* Quick-log editor rows inside the settings modal */
+  .ql-editor-row {
+    display: grid; grid-template-columns: 40px 1fr 90px 110px 32px;
+    gap: 6px; align-items: center; margin-bottom: 8px;
+  }
+  .ql-editor-row input {
+    background: var(--bg-deep); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 10px; color: var(--text-main); font-size: 0.85rem; outline: none;
+  }
+  .ql-editor-row input:focus { border-color: var(--accent-purple); }
+  .ql-del-btn {
+    background: none; border: 1px solid rgba(239,68,68,0.3); border-radius: 8px;
+    color: var(--accent-crimson); cursor: pointer; font-size: 0.85rem; padding: 4px 8px;
+    transition: background 0.15s;
+  }
+  .ql-del-btn:hover { background: rgba(239,68,68,0.12); }
+  .ql-add-btn {
+    background: none; border: 1px solid rgba(34,197,94,0.35); border-radius: 8px;
+    color: var(--accent-green); cursor: pointer; font-size: 0.85rem;
+    padding: 7px 14px; margin-top: 6px; transition: background 0.15s;
+  }
+  .ql-add-btn:hover { background: rgba(34,197,94,0.1); }
+
+  /* =====================================================================
+     PHASE 3 ADDITIONS (marked with [P3]):
+       - [P3-F9]  Unlockable player titles
+       - [P3-F7]  Goal milestone badges (25/50/75/100%)
+       - [P3-F18] Sparklines on goals
+       - [P3-F7]  Goal completion celebration banner + floating text
+  ===================================================================== */
+
+  /* --- [P3-F9] Player titles --- */
+  .player-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    min-height: 16px;
+    margin-bottom: 1px;
+    background: linear-gradient(135deg, var(--accent-amber), var(--accent-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    transition: opacity 0.4s;
+  }
+
+  /* --- [P3-F7] Goal milestone badges row --- */
+  .milestone-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 6px 0 4px;
+  }
+  .milestone-pip {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg-deep);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem;
+    transition: border-color 0.3s, background 0.3s, transform 0.25s;
+    flex-shrink: 0;
+  }
+  .milestone-pip.reached {
+    border-color: var(--accent-amber);
+    background: rgba(245,158,11,0.15);
+    transform: scale(1.15);
+  }
+  .milestone-pip.reached.full {
+    border-color: var(--accent-green);
+    background: rgba(34,197,94,0.15);
+    animation: milestoneGlow 1.5s ease-in-out infinite alternate;
+  }
+  @keyframes milestoneGlow {
+    from { box-shadow: 0 0 4px rgba(34,197,94,0.4); }
+    to   { box-shadow: 0 0 10px rgba(34,197,94,0.8); }
+  }
+  .milestone-line {
+    flex: 1; height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+    position: relative;
+  }
+  .milestone-line-fill {
+    position: absolute; top: 0; left: 0; height: 100%;
+    background: linear-gradient(90deg, var(--accent-amber), var(--accent-green));
+    border-radius: 1px;
+    transition: width 0.6s ease;
+  }
+
+  /* --- [P3-F7] Goal completion celebration banner --- */
+  .goal-complete-banner {
+    background: linear-gradient(135deg, rgba(34,197,94,0.18), rgba(6,182,212,0.1));
+    border: 1px solid rgba(34,197,94,0.4);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 8px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--accent-green);
+    font-size: 0.9rem;
+    animation: bannerPop 0.5s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes bannerPop {
+    0%   { transform: scale(0.85); opacity: 0; }
+    100% { transform: scale(1);    opacity: 1; }
+  }
+
+  /* --- [P3-F18] Sparklines --- */
+  .sparkline-wrap {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .goal-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin: 4px 0 10px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* =====================================================================
+     PHASE 4 ADDITIONS (marked with [P4]):
+       - [P4-F1]  AI Insights panel
+       - [P4-F4]  Narrative / Story panel
+       - [P4-F13] Global What-If Simulator
+  ===================================================================== */
+
+  /* --- [P4-F1] AI Insights panel --- */
+  .insights-panel {
+    background: linear-gradient(135deg, rgba(168,85,247,0.07), rgba(6,182,212,0.04));
+    border: 1px solid rgba(168,85,247,0.2);
+    border-radius: 14px; padding: 16px 18px;
+  }
+  .insight-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.88rem; line-height: 1.5;
+  }
+  .insight-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .insight-tag {
+    display: inline-block; flex-shrink: 0;
+    background: var(--accent-purple); color: #fff;
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.5px;
+    padding: 2px 7px; border-radius: 10px; margin-top: 2px;
+    font-family: var(--font-mono);
+  }
+  .insight-tag.green  { background: var(--accent-green); }
+  .insight-tag.amber  { background: var(--accent-amber); color: #000; }
+  .insight-tag.red    { background: var(--accent-crimson); }
+  .insight-tag.cyan   { background: var(--accent-cyan); color: #000; }
+
+  /* --- [P4-F13] What-If Simulator --- */
+  .simulator-block {
+    background: var(--bg-deep); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; margin-top: 14px;
+  }
+  .simulator-block h4 {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--accent-cyan); margin-bottom: 12px; font-family: var(--font-mono);
+  }
+  .sim-row { margin-bottom: 12px; }
+  .sim-label {
+    display: flex; justify-content: space-between;
+    font-size: 0.82rem; margin-bottom: 5px; color: var(--text-dim);
+  }
+  .sim-label span { color: var(--accent-green); font-weight: 700; font-family: var(--font-mono); }
+  .sim-slider {
+    width: 100%; height: 6px; border-radius: 3px;
+    -webkit-appearance: none; background: rgba(255,255,255,0.08); cursor: pointer;
+  }
+  .sim-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); cursor: pointer;
+  }
+  .sim-result {
+    margin-top: 12px; padding: 10px 14px;
+    background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25);
+    border-radius: 10px; font-size: 0.85rem; line-height: 1.6;
+  }
+  .sim-result strong { color: var(--accent-green); }
+
+  /* --- [P4-F4] Narrative / Story panel --- */
+  .story-toggle-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 0.8rem; color: var(--accent-purple);
+    font-family: var(--font-mono); padding: 0; margin-left: auto;
+    transition: opacity 0.2s;
+  }
+  .story-toggle-btn:hover { opacity: 0.7; }
+  .story-body {
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 0.88rem; line-height: 1.7; color: var(--text-dim);
+  }
+  .story-theme-banner {
+    background: linear-gradient(135deg, rgba(236,72,153,0.12), rgba(168,85,247,0.08));
+    border: 1px solid rgba(236,72,153,0.2);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
+    font-weight: 700; font-size: 0.95rem; color: var(--text-main);
+  }
+  .story-boss-battle {
+    margin-top: 10px; padding: 12px 14px;
+    background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(245,158,11,0.08));
+    border: 1px solid rgba(239,68,68,0.3); border-radius: 10px;
+    font-size: 0.88rem; line-height: 1.6;
+  }
+  .story-boss-battle strong { color: var(--accent-crimson); }
+  body.light-theme .story-body { color: var(--text-dim); }
+
+  /* =====================================================================
+     PHASE 5 ADDITIONS (marked with [P5]):
+       - [P5-F16] Animated gradient text on "Total Saved" in Party Stats
+       - [P5-F19] Smooth cross-fade on month switch (HP bars, charts)
+       - Enhanced MoM comparison card
+  ===================================================================== */
+
+  /* --- [P5-F16] Animated gradient "Total Saved" value --- */
+  @keyframes gradientShift {
+    0%   { background-position: 0%   50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0%   50%; }
+  }
+  .total-saved-value {
+    background: linear-gradient(135deg, var(--accent-amber), var(--accent-pink), var(--accent-purple), var(--accent-cyan));
+    background-size: 300% 300%;
+    animation: gradientShift 4s ease infinite;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+
+  /* --- [P5-F19] Month-switch cross-fade targets --- */
+  .fade-target {
+    transition: opacity 0.25s ease;
+  }
+  .fade-target.fading {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* --- [P5] Enhanced MoM grid --- */
+  .mom-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .mom-card {
+    background: var(--bg-deep); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+    transition: border-color 0.2s;
+  }
+  .mom-card:hover { border-color: var(--accent-purple); }
+  .mom-card-label { font-size: 0.72rem; color: var(--text-dim); margin-bottom: 4px; }
+  .mom-card-value { font-weight: 700; font-size: 1rem; font-family: var(--font-mono); }
+  .mom-change { font-size: 0.78rem; margin-top: 3px; font-weight: 600; }
+  .mom-change.up   { color: var(--accent-crimson); }
+  .mom-change.down { color: var(--accent-green); }
+  .mom-change.same { color: var(--text-dim); }
+
+  /* --- [P5] Chart container smooth rerender --- */
+  .chart-container canvas {
+    transition: opacity 0.2s ease;
+  }
+
+  /* =====================================================================
+     PHASE 6 ADDITIONS (marked with [P6]):
+       - [P6-F10] Time-Travel Replay controls
+       - [P6-F8]  Skeleton shimmer loading states
+  ===================================================================== */
+
+  /* --- [P6-F10] Replay controls bar --- */
+  .replay-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; margin-top: 10px;
+    background: rgba(168,85,247,0.06);
+    border: 1px solid rgba(168,85,247,0.2);
+    border-radius: 10px; flex-wrap: wrap;
+  }
+  .replay-bar.hidden { display: none; }
+  .replay-progress-text {
+    font-size: 0.78rem; color: var(--accent-purple);
+    font-family: var(--font-mono); flex: 1; min-width: 120px;
+  }
+  .replay-track-bg {
+    flex: 1; min-width: 100px; height: 4px;
+    background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;
+  }
+  .replay-track-fill {
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent-purple), var(--accent-cyan));
+    transition: width 0.4s ease;
+  }
+  .replay-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text-dim);
+    padding: 5px 12px; font-size: 0.8rem; font-weight: 700;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .replay-btn:hover  { border-color: var(--accent-purple); color: var(--accent-purple); }
+  .replay-btn:active { transform: scale(0.95); }
+  .replay-btn.stop   { border-color: rgba(239,68,68,0.4); color: var(--accent-crimson); }
+  .replay-btn.stop:hover { background: rgba(239,68,68,0.1); }
+
+  /* --- [P6-F8] Skeleton shimmer --- */
+  @keyframes shimmer {
+    0%   { background-position: -800px 0; }
+    100% { background-position:  800px 0; }
+  }
+  .skeleton-line {
+    height: 14px; border-radius: 7px; margin-bottom: 10px;
+    background: linear-gradient(90deg,
+      var(--bg-card) 25%,
+      var(--border)  50%,
+      var(--bg-card) 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s infinite linear;
+  }
+  .skeleton-line.tall  { height: 20px; }
+  .skeleton-line.short { width: 60%; }
+  .skeleton-line.bar   { height: 18px; border-radius: 9px; margin-bottom: 14px; }
+  .skeleton-chart {
+    height: 260px; border-radius: 12px;
+    background: linear-gradient(90deg,
+      var(--bg-card) 25%,
+      var(--border)  50%,
+      var(--bg-card) 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s infinite linear;
+    margin-top: 8px;
+  }
+
+  /* Loading overlay for panels */
+  .panel-loading-overlay {
+    position: absolute; inset: 0;
+    background: var(--bg-card);
+    border-radius: 16px;
+    z-index: 5; padding: 20px;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .panel-loading-overlay.gone {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .panel.relative { position: relative; }
+
+  /* =====================================================================
+     PHASE 7 ADDITIONS (marked with [P7]):
+       - [P7-F5] PWA install prompt banner
+       - [P7-F5] Offline indicator pill
+  ===================================================================== */
+
+  /* --- [P7-F5] Install prompt banner --- */
+  .pwa-install-bar {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 9990;
+    background: var(--bg-card);
+    border: 1px solid rgba(168,85,247,0.4);
+    border-radius: 14px;
+    padding: 14px 20px;
+    display: flex; align-items: center; gap: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    animation: slideUpPwa 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    max-width: 420px; width: calc(100vw - 40px);
+  }
+  @keyframes slideUpPwa {
+    from { opacity:0; transform:translateX(-50%) translateY(30px); }
+    to   { opacity:1; transform:translateX(-50%) translateY(0); }
+  }
+  .pwa-install-bar .pwa-icon { font-size: 1.6rem; flex-shrink:0; }
+  .pwa-install-bar .pwa-text { flex:1; font-size:0.85rem; line-height:1.4; }
+  .pwa-install-bar .pwa-text strong { display:block; font-size:0.95rem; margin-bottom:2px; }
+  .pwa-install-btn {
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+    color: #fff; border: none; border-radius: 10px;
+    padding: 9px 16px; font-size: 0.85rem; font-weight: 700;
+    cursor: pointer; white-space: nowrap; flex-shrink:0;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .pwa-install-btn:hover  { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(168,85,247,0.4); }
+  .pwa-install-btn:active { transform: scale(0.96); }
+  .pwa-dismiss-btn {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 1.1rem; padding: 4px; flex-shrink:0;
+    line-height:1; transition: color 0.15s;
+  }
+  .pwa-dismiss-btn:hover { color: var(--text-main); }
+
+  /* --- [P7-F5] Offline indicator pill --- */
+  .offline-pill {
+    position: fixed; top: 12px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 9995;
+    background: rgba(239,68,68,0.15);
+    border: 1px solid rgba(239,68,68,0.4);
+    color: var(--accent-crimson);
+    border-radius: 999px;
+    padding: 5px 16px;
+    font-size: 0.78rem; font-weight: 700;
+    font-family: var(--font-mono);
+    display: none; align-items: center; gap: 6px;
+    pointer-events: none;
+  }
+  .offline-pill.visible { display: flex; }
+
+  /* =====================================================================
+     MULTI-PLAYER ADDITIONS:
+       - Dynamic player cards (any number, rendered by JS)
+       - Player management modal
+       - Avatar colour palette per player index
+  ===================================================================== */
+
+  /* Dynamic players bar — wraps instead of fixed 3-col grid on many players */
+  .players-bar {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    margin: 20px 0 24px;
+    justify-content: center;
+  }
+  .player-card {
+    flex: 1 1 220px;
+    max-width: 320px;
+  }
+  /* Keep synergy orb centred */
+  .synergy-orb-wrap { flex: 0 0 auto; }
+
+  /* Add-player button card */
+  .add-player-card {
+    flex: 0 0 auto;
+    background: none;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 20px 28px;
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; color: var(--text-dim);
+    font-size: 0.9rem; font-weight: 600;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+  .add-player-card:hover {
+    border-color: var(--accent-purple);
+    color: var(--accent-purple);
+    background: rgba(168,85,247,0.06);
+  }
+  .add-player-card:active { transform: scale(0.97); }
+
+  /* Player colour tokens — cycles for each player index */
+  .pav-0 { border-color: var(--accent-cyan);   background: rgba(6,182,212,0.15);  color: var(--accent-cyan); }
+  .pav-1 { border-color: var(--accent-pink);   background: rgba(236,72,153,0.15); color: var(--accent-pink); }
+  .pav-2 { border-color: var(--accent-green);  background: rgba(34,197,94,0.15);  color: var(--accent-green); }
+  .pav-3 { border-color: var(--accent-amber);  background: rgba(245,158,11,0.15); color: var(--accent-amber); }
+  .pav-4 { border-color: var(--accent-purple); background: rgba(168,85,247,0.15); color: var(--accent-purple); }
+  .pxp-0 { background: linear-gradient(90deg, var(--accent-cyan),   var(--accent-green)); }
+  .pxp-1 { background: linear-gradient(90deg, var(--accent-pink),   var(--accent-purple)); }
+  .pxp-2 { background: linear-gradient(90deg, var(--accent-green),  var(--accent-cyan)); }
+  .pxp-3 { background: linear-gradient(90deg, var(--accent-amber),  var(--accent-pink)); }
+  .pxp-4 { background: linear-gradient(90deg, var(--accent-purple), var(--accent-cyan)); }
+
+  /* Player manager modal rows */
+  .pm-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px 36px;
+    gap: 8px; align-items: center;
+    margin-bottom: 10px;
+  }
+  .pm-avatar-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; cursor: pointer; border: 2px solid var(--border);
+    background: var(--bg-deep); transition: border-color 0.2s;
+    flex-shrink: 0;
+  }
+  .pm-avatar-btn:hover { border-color: var(--accent-purple); }
+  .pm-name-input {
+    background: var(--bg-deep); border: 1px solid var(--border);
+    border-radius: 10px; padding: 9px 12px; color: var(--text-main);
+    font-size: 0.9rem; outline: none; width: 100%;
+  }
+  .pm-name-input:focus { border-color: var(--accent-purple); }
+  .pm-del-btn {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: none; border: 1px solid rgba(239,68,68,0.3);
+    color: var(--accent-crimson); cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .pm-del-btn:hover { background: rgba(239,68,68,0.1); }
+  .pm-del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .pm-add-btn {
+    background: none; border: 1px dashed rgba(34,197,94,0.4);
+    border-radius: 10px; color: var(--accent-green);
+    padding: 9px 16px; font-size: 0.85rem; font-weight: 700;
+    cursor: pointer; width: 100%; margin-top: 4px;
+    transition: background 0.15s;
+  }
+  .pm-add-btn:hover { background: rgba(34,197,94,0.08); }
+</style>
+</head>
+<body>
+<div class="bg-particles"></div>
+
+<!-- [P7-F5] Offline indicator pill -->
+<div class="offline-pill" id="offlinePill">📡 Offline — changes will sync when reconnected</div>
+
+<!-- [P7-F5] PWA install banner (shown by JS when beforeinstallprompt fires) -->
+<div class="pwa-install-bar" id="pwaInstallBar" style="display:none;">
+  <span class="pwa-icon">⚔️</span>
+  <div class="pwa-text">
+    <strong>Install Quest Ledger</strong>
+    Add to home screen for the full app experience — works offline too.
+  </div>
+  <button class="pwa-install-btn" onclick="pwaTriggerInstall()">Install</button>
+  <button class="pwa-dismiss-btn" onclick="pwaDismiss()" title="Dismiss">✕</button>
+</div>
+<div class="app-container">
+  <header class="app-header">
+    <div style="flex:1;">
+      <h1>⚔️ Quest Ledger</h1>
+      <p style="color:var(--text-dim);font-size:0.9rem;">Co-Op Budget RPG · PWA · Cloud Sync Active ☁️</p>
+    </div>
+    <!-- [FIREBASE] Sound toggle + sync status dot -->
+    <button class="sound-toggle-btn" id="soundToggleBtn" onclick="toggleSound()" title="Toggle sound effects">🔊</button>
+    <!-- Sync status indicator: green=synced, amber=syncing, red=error, grey=offline -->
+    <div id="syncStatusDot" title="Sync status" style="
+      width:10px; height:10px; border-radius:50%;
+      background:#64748b; flex-shrink:0; margin-top:2px;
+      box-shadow:0 0 6px currentColor; transition:background 0.4s;
+      align-self:center;
+    "></div>
+    <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">🌙</button>
+    <button class="btn btn-secondary" onclick="openSettingsModal()" style="padding:10px 16px;font-size:1.1rem;">⚙️</button>
+  </header>
+
+  <div class="streak-banner" id="streakBanner">
+    <span class="streak-icon">🔥</span>
+    <span class="streak-text">Daily Logging Streak: <span id="streakCount">0</span> days</span>
+    <span class="streak-text">| Multiplier: <span id="streakMultiplier">x1.0</span></span>
+  </div>
+
+  <div class="panel" id="timeMachinePanel">
+    <div class="panel-title">
+      <span class="icon">📅</span> Time Machine<span id="pastBadge"></span>
+      <div class="month-selector-wrap" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <button class="month-nav-btn" id="monthPrevBtn" onclick="navigateMonth(-1)">◀</button>
+        <select id="monthSelector" onchange="onMonthChange(this.value)"></select>
+        <button class="month-nav-btn" id="monthNextBtn" onclick="navigateMonth(1)">▶</button>
+        <!-- [P6-F10] Replay button -->
+        <button class="replay-btn" id="replayStartBtn" onclick="startReplay()" title="Animate through all months">▶ Replay</button>
+      </div>
+    </div>
+    <!-- [P6-F10] Replay progress bar — hidden until replay starts -->
+    <div class="replay-bar hidden" id="replayBar">
+      <span class="replay-progress-text" id="replayProgressText">Preparing…</span>
+      <div class="replay-track-bg"><div class="replay-track-fill" id="replayTrackFill" style="width:0%"></div></div>
+      <button class="replay-btn stop" onclick="stopReplay()">■ Stop</button>
+    </div>
+    <div class="mom-grid" id="momCompare"></div>
+  </div>
+
+  <!-- Players bar — fully rendered by renderPlayers() -->
+  <div class="players-bar" id="playersBar">
+    <!-- JS populates player cards here -->
+    <div class="synergy-orb-wrap" id="synergyOrbWrap">
+      <div class="synergy-orb"><div class="synergy-inner"><div class="synergy-lvl" id="synergyLevel">1</div><div class="synergy-label">Synergy</div></div></div>
+    </div>
+    <button class="add-player-card" onclick="openPlayerManager()" title="Add or manage players">
+      ⚔️ Manage Players
+    </button>
+  </div>
+
+  <div class="main-grid">
+    <div class="left-col">
+      <div class="panel">
+        <div class="panel-title"><span class="icon">📜</span> Daily Quest Log</div>
+        <form class="form-grid" id="questForm" onsubmit="return false;">
+          <div class="form-row">
+            <div class="form-group"><label>Date</label><input type="date" id="txnDate" required></div>
+            <div class="form-group"><label>Player</label><select id="txnPlayer"></select></div>
+          </div>
+          <!-- [P2-F11] Description + voice mic button -->
+          <div class="form-group">
+            <label>Description</label>
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+              <input type="text" id="txnDesc" placeholder="e.g., 'coffee 250' or speak it" style="flex:1;">
+              <button type="button" class="voice-btn" id="voiceBtn" onclick="toggleVoice()" title="Click then speak: 'coffee 250' or 'groceries 1500 at metro'">🎙️</button>
+            </div>
+            <!-- Listening indicator -->
+            <div class="voice-status-row" id="voiceStatusRow" style="display:none;">
+              <span class="voice-dot active" id="voiceDot"></span>
+              <span id="voiceStatusText">Listening…</span>
+            </div>
+          </div>
+          <!-- [P2-F14] Predictive hint pills (populated by JS) -->
+          <div class="prefill-hint-row" id="prefillHints"></div>
+          <div class="form-row">
+            <div class="form-group"><label>Amount (PKR)</label><input type="number" id="txnAmount" placeholder="0.00" step="0.01"></div>
+            <div class="form-group"><label>Category</label><select id="txnCategory"></select></div>
+          </div>
+          <button type="submit" class="btn btn-primary"><span>⚔️</span> Log Expense Quest</button>
+        </form>
+        <!-- [P2-F12] Quick-log buttons + manage link -->
+        <div class="quick-log-buttons" id="quickLogContainer"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><span class="icon">🎯</span> Active Quests (Savings Goals)
+          <button class="btn btn-secondary" style="margin-left:auto;" onclick="openGoalModal()">+ New Quest</button>
+        </div>
+        <div id="goalsList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><span class="icon">💾</span> Data Vault</div>
+        <div class="data-actions">
+          <button class="btn btn-secondary" onclick="exportData()">📤 JSON</button>
+          <button class="btn btn-secondary" onclick="exportCSV()">📊 CSV</button>
+          <button class="btn btn-secondary" onclick="openImportModal()">📥 Import</button>
+          <button class="btn btn-secondary" onclick="undoAction()" id="undoBtn" disabled>↩ Undo</button>
+          <button class="btn btn-secondary" onclick="redoAction()" id="redoBtn" disabled>↪ Redo</button>
+          <button class="btn btn-danger" onclick="resetData()">🗑️ Reset</button>
+        </div>
+      </div>
+
+      <!-- [P4-F1] AI Insights panel -->
+      <div class="panel">
+        <div class="panel-title"><span>✨</span> AI Insights</div>
+        <div class="insights-panel" id="insightsPanel">
+          <div class="insight-row"><span class="insight-tag cyan">TIP</span><span>Log a transaction to see personalised insights.</span></div>
+        </div>
+      </div>
+
+      <!-- [P4-F4] Narrative / Story panel -->
+      <div class="panel">
+        <div class="panel-title">
+          <span>📖</span> Monthly Chronicle
+          <button class="story-toggle-btn" id="storyToggleBtn" onclick="toggleStory()">▼ expand</button>
+        </div>
+        <div id="storyBanner"></div>
+        <div class="story-body" id="storyBody" style="display:none;"></div>
+      </div>
+
+      <!-- [P4-F13] Global What-If Simulator -->
+      <div class="panel">
+        <div class="panel-title"><span>🔮</span> What-If Simulator</div>
+        <div id="simulatorPanel"></div>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="panel relative" id="hpBarsPanel">
+        <div class="panel-title"><span class="icon">❤️</span> Budget HP Bars <span id="hpBarsMonthLabel" style="font-weight:400;"></span>
+          <button class="btn btn-secondary" style="margin-left:auto;" onclick="openBudgetModal()">⚙️ Set Budgets</button>
+        </div>
+        <div id="hpBars" class="fade-target"></div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div class="panel"><div class="panel-title"><span class="icon">📊</span> Spending Split</div><div class="chart-container fade-target"><canvas id="spendingChart"></canvas></div></div>
+        <div class="panel"><div class="panel-title"><span class="icon">🏆</span> Co-Op Leaderboard</div><div id="leaderboard"></div></div>
+      </div>
+
+      <div class="panel"><div class="panel-title"><span class="icon">📈</span> Spending Trends</div><div class="chart-container fade-target"><canvas id="trendChart"></canvas></div></div>
+      <div class="panel"><div class="panel-title"><span class="icon">🎉</span> Party Stats</div><div class="party-stats-grid" id="partyStats"></div></div>
+      <div class="panel"><div class="panel-title"><span class="icon">⚡</span> Weekly Challenge</div><div id="weeklyChallenge"></div></div>
+      <div class="panel"><div class="panel-title"><span class="icon">🏅</span> Achievements</div><div class="badges-grid" id="badgesGrid"></div></div>
+      <div class="panel">
+        <div class="panel-title"><span class="icon">📋</span> Recent Quest Logs
+          <button class="btn btn-secondary" style="margin-left:auto;" onclick="clearTransactions()">Clear All</button>
+        </div>
+        <div class="search-bar-row">
+          <input class="search-input" id="txnSearch" placeholder="🔍 Search…" oninput="renderTransactions()">
+          <select class="search-select" id="txnFilterCat" onchange="renderTransactions()"><option value="">All Categories</option></select>
+          <select class="search-select" id="txnFilterPlayer" onchange="renderTransactions()"><option value="">All Players</option><option value="p1">Player 1</option><option value="p2">Player 2</option></select>
+        </div>
+        <div class="txn-list" id="txnList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modals — unchanged from original -->
+<div class="modal-overlay" id="goalModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">🎯 New Quest</div><div class="form-grid"><div class="form-group"><label>Quest Name</label><input type="text" id="goalName"></div><div class="form-row"><div class="form-group"><label>Target (PKR)</label><input type="number" id="goalTarget"></div><div class="form-group"><label>Current Saved</label><input type="number" id="goalCurrent" value="0"></div></div><div class="form-row"><div class="form-group"><label>Target Date</label><input type="date" id="goalTargetDate"></div><div class="form-group"><label>Monthly Contribution</label><input type="number" id="goalMonthlyContribution" value="0"></div></div></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeGoalModal()">Cancel</button><button class="btn btn-primary" onclick="addGoal()">Create</button></div></div></div>
+<div class="modal-overlay" id="budgetModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Budget Limits — <span id="budgetModalMonth"></span></div><div class="budget-copy-row" style="margin-bottom:12px;"><button class="btn btn-secondary" onclick="copyPreviousMonthBudgets()">📋 Copy Previous Month</button></div><div id="budgetInputs"></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeBudgetModal()">Cancel</button><button class="btn btn-primary" onclick="saveBudgets()">Save</button></div></div></div>
+<div class="modal-overlay" id="importModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">📥 Import Data</div><textarea id="importData" placeholder='{"transactions":[],...}' style="width:100%;height:160px;background:var(--bg-deep);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text-main);font-family:var(--font-mono);font-size:0.85rem;resize:vertical;"></textarea><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button><button class="btn btn-primary" onclick="importData()">Import</button></div></div></div>
+<div class="modal-overlay" id="settingsModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">⚙️ Settings</div><div style="display:flex;gap:8px;margin-bottom:18px;"><button class="btn btn-secondary settings-tab-btn active" onclick="switchSettingsTab('formulas',this)">🧪 Formulas</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('display',this)">🎨 Display</button><button class="btn btn-secondary settings-tab-btn" onclick="switchSettingsTab('quicklogs',this)">⚡ Quick Logs</button></div><div id="settingsTab-players" style="display:none;"></div><div id="settingsTab-formulas"><div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;padding:10px;background:rgba(168,85,247,0.06);border-radius:8px;border:1px solid rgba(168,85,247,0.15);">👤 To add, rename or remove players, use the <strong>⚔️ Manage Players</strong> button on the main dashboard.</div><div class="form-row"><div class="form-group"><label>XP per Log</label><input type="number" id="sXpPerLog"></div><div class="form-group"><label>Level-Up Base</label><input type="number" id="sLevelUpBase"></div></div><div class="form-row"><div class="form-group"><label>Streak Cap</label><input type="number" id="sStreakCap"></div><div class="form-group"><label>Synergy XP/Log</label><input type="number" id="sSynergyXp"></div></div></div><div id="settingsTab-display" style="display:none;"><div class="form-row"><div class="form-group"><label>Currency Symbol</label><input type="text" id="sCurrencySymbol"></div><div class="form-group"><label>Currency Code</label><input type="text" id="sCurrencyCode"></div></div></div>
+<!-- [P2-F12] Quick Logs editor tab -->
+<div id="settingsTab-quicklogs" style="display:none;">
+  <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">Edit, reorder, add or remove quick-log shortcuts. Changes apply immediately on Save.</p>
+  <div style="font-size:0.72rem;color:var(--text-dim);display:grid;grid-template-columns:40px 1fr 90px 110px 32px;gap:6px;margin-bottom:6px;padding:0 2px;">
+    <span>Icon</span><span>Label</span><span>Amount</span><span>Category</span><span></span>
+  </div>
+  <div id="qlEditorRows"></div>
+  <button type="button" class="ql-add-btn" onclick="qlAddRow()">+ Add Shortcut</button>
+</div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button><button class="btn btn-primary" onclick="saveSettings()">Save</button></div></div></div>
+<div class="modal-overlay" id="avatarPickerModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">🎭 Choose Avatar</div><div id="avatarPickerTarget" style="display:none;"></div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;" id="avatarGrid"></div><div class="form-group"><label>Custom emoji:</label><input type="text" id="customAvatarInput" maxlength="4"></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeAvatarPicker()">Cancel</button><button class="btn btn-primary" onclick="confirmAvatarPick()">Use</button></div></div></div>
+<div class="modal-overlay" id="txnEditModal"><div class="modal"><div class="modal-title" style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">✏️ Edit Transaction</div><input type="hidden" id="editTxnId"><div class="form-group" style="margin-bottom:12px;"><label>Description</label><input type="text" id="editTxnDesc"></div><div class="form-row" style="margin-bottom:12px;"><div class="form-group"><label>Amount</label><input type="number" id="editTxnAmount"></div><div class="form-group"><label>Date</label><input type="date" id="editTxnDate"></div></div><div class="form-row"><div class="form-group"><label>Category</label><select id="editTxnCategory"></select></div><div class="form-group"><label>Player</label><select id="editTxnPlayer"></select></div></div><div class="modal-actions" style="display:flex;gap:10px;margin-top:16px;"><button class="btn btn-secondary" onclick="closeTxnEditModal()">Cancel</button><button class="btn btn-primary" onclick="saveTxnEdit()">Save</button></div></div></div>
+
+<!-- Player Manager Modal -->
+<div class="modal-overlay" id="playerManagerModal">
+  <div class="modal" style="max-width:480px;">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px;">⚔️ Manage Players</div>
+    <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:16px;">Add, rename, or remove players. At least 1 player is required. Click an avatar to change it.</p>
+    <div id="pmRows"></div>
+    <button class="pm-add-btn" onclick="pmAddPlayer()">+ Add Player</button>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-secondary" onclick="closePlayerManager()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePlayerManager()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// FIREBASE CONFIG — live project credentials
+// Cloud sync is ENABLED. Both devices share the same Firestore document.
+// Strategy: last-write-wins with 500 ms debounce on writes.
+// Anonymous auth is used — no login required.
+// =============================================================================
+const FIREBASE_ENABLED = true;
+const firebaseConfig = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_AUTH_DOMAIN",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId:             "YOUR_APP_ID",
+  measurementId:     "YOUR_MEASUREMENT_ID"
+};
+
+let db = null, auth = null;
+let syncEnabled = true, syncTimeout = null;
+let _cloudListenerActive = false; // prevent duplicate listeners on hot-reload
+
+try {
+  // Guard against double-init in dev environments
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  db   = firebase.firestore();
+  auth = firebase.auth();
+
+  // Enable Firestore offline persistence so the app keeps working
+  // even when the device temporarily loses internet.
+  // Note: only one tab can hold persistence at a time — that's fine for this app.
+  db.enablePersistence()
+    .catch(err => {
+      // FAILED_PRECONDITION: another tab already holds persistence — harmless
+      // UNIMPLEMENTED: browser doesn't support IndexedDB — graceful fallback
+      if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
+        console.warn('Firestore persistence error:', err);
+      }
+    });
+
+  // Sign in anonymously — each browser session gets its own UID
+  // but all sessions write to the SAME shared document, so both
+  // devices stay in sync automatically.
+  auth.signInAnonymously().catch(err => console.warn('Auth error:', err));
+
+} catch(e) {
+  console.warn('Firebase init failed — running in offline-only mode:', e);
+}
+
+// Visual sync status indicator (shown in header)
+function setSyncStatus(status) {
+  // status: 'ok' | 'syncing' | 'error' | 'offline'
+  const el = document.getElementById('syncStatusDot');
+  if (!el) return;
+  const map = {
+    ok:      { color: '#22c55e', title: 'Synced ✓' },
+    syncing: { color: '#f59e0b', title: 'Syncing…' },
+    error:   { color: '#ef4444', title: 'Sync error' },
+    offline: { color: '#64748b', title: 'Offline' }
+  };
+  const s = map[status] || map.offline;
+  el.style.background = s.color;
+  el.title = s.title;
+}
+
+// =============================================================================
+// [P1-F2]  AUDIO ENGINE
+// Web Audio API — no external files needed.
+// All sounds are synthesised on-the-fly; calls are safe-guarded so errors
+// never break the rest of the app.
+// =============================================================================
+const AudioEngine = (() => {
+  let ctx = null;
+  // Restore mute preference from localStorage
+  let _muted = localStorage.getItem('qlSoundMuted') === 'true';
+
+  function getCtx() {
+    if (!ctx) {
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return null; }
+    }
+    // Resume if browser suspended it (autoplay policy)
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  /** Play a single oscillator tone */
+  function tone(freq, startOffset, duration, vol = 0.25, type = 'sine') {
+    const c = getCtx(); if (!c || _muted) return;
+    try {
+      const osc  = c.createOscillator();
+      const gain = c.createGain();
+      osc.connect(gain); gain.connect(c.destination);
+      osc.type = type;
+      osc.frequency.value = freq;
+      const t = c.currentTime + startOffset;
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+      osc.start(t);
+      osc.stop(t + duration + 0.05);
+    } catch(e) { /* silent fail */ }
+  }
+
+  return {
+    isMuted: () => _muted,
+
+    setMuted(val) {
+      _muted = val;
+      localStorage.setItem('qlSoundMuted', val);
+    },
+
+    /** Soft coin chime — played when a transaction is logged */
+    coin() {
+      tone(880, 0,    0.08, 0.18, 'sine');
+      tone(1320, 0.07, 0.10, 0.12, 'sine');
+    },
+
+    /** Ascending fanfare — played on level-up */
+    levelUp() {
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((f, i) => tone(f, i * 0.12, 0.18, 0.2, 'triangle'));
+    },
+
+    /** Bright double-chime — played on achievement unlock */
+    achievement() {
+      tone(1046.50, 0,    0.15, 0.22, 'sine');
+      tone(1318.51, 0.15, 0.20, 0.18, 'sine');
+    },
+
+    /** Warm success chord — played when a savings goal completes */
+    goalComplete() {
+      [523.25, 659.25, 783.99].forEach((f, i) => tone(f, i * 0.05, 0.4, 0.15, 'sine'));
+    }
+  };
+})();
+
+// =============================================================================
+// CATEGORIES — unchanged
+// =============================================================================
+const CATEGORIES = {
+  housing:  { name: 'Housing & Utilities',   icon: '🏠', budget: 30000, color: '#a855f7' },
+  groceries:{ name: 'Groceries & Diet',      icon: '🥩', budget: 20000, color: '#22c55e' },
+  dining:   { name: 'Dining Out',            icon: '🍽️', budget: 10000, color: '#f59e0b' },
+  coffee:   { name: 'Specialty Coffee',      icon: '☕', budget:  5000, color: '#8b5cf6' },
+  crypto:   { name: 'Crypto & Investments',  icon: '₿',  budget: 15000, color: '#06b6d4' },
+  tech:     { name: 'Tech & Infrastructure', icon: '💻', budget:  8000, color: '#3b82f6' },
+  transport:{ name: 'Transport & Travel',    icon: '🚗', budget: 12000, color: '#f97316' },
+  medical:  { name: 'Medical & Wellness',    icon: '💊', budget:  5000, color: '#ef4444' },
+  wildcard: { name: 'Wildcard Encounters',   icon: '🎲', budget:  5000, color: '#ec4899' }
+};
+
+const DEFAULT_GOALS = [
+  { id:'g1', name:'Northern Pakistan Expedition Fund', target:150000, current:25000, targetDate:null, monthlyContribution:0, createdDate:new Date().toISOString().split('T')[0] },
+  { id:'g2', name:'Tech Hardware & Gadget Fund',       target: 80000, current:12000, targetDate:null, monthlyContribution:0, createdDate:new Date().toISOString().split('T')[0] },
+  { id:'g3', name:'Exam Prep Reserve',                 target: 40000, current: 5000, targetDate:null, monthlyContribution:0, createdDate:new Date().toISOString().split('T')[0] }
+];
+
+// =============================================================================
+// STATE — unchanged, except goalContributions guaranteed present
+// =============================================================================
+let state = {
+  transactions: [],
+  goals: [...DEFAULT_GOALS],
+  budgets: {},
+  goalContributions: [],
+  // Dynamic players array — each entry: { id, name, avatar, xp, level, txns }
+  // id is stable (used as transaction.player key), name/avatar are editable
+  players: [
+    { id:'p1', name:'Husband', avatar:'⚔️', xp:0, level:1, txns:0 },
+    { id:'p2', name:'Wife',    avatar:'🛡️', xp:0, level:1, txns:0 }
+  ],
+  synergy: { level:1, xp:0 },
+  streak:  { count:0, lastDate:null, multiplier:1 },
+  settings: {
+    currency:'PKR', currencySymbol:'₨', xpPerLog:10, levelUpBase:100,
+    streakMultiplierCap:3, synergyXpPerLog:5, synergyLevelThreshold:50,
+    // p1Name/p2Name/p1Avatar/p2Avatar kept for backward compat migration in loadState
+    adminMode:false,
+    quickLogs: [
+      {icon:'☕', label:'Coffee',    amount:250,  cat:'coffee'},
+      {icon:'🍔', label:'Lunch',     amount:500,  cat:'dining'},
+      {icon:'🚕', label:'Taxi',      amount:300,  cat:'transport'},
+      {icon:'🛒', label:'Groceries', amount:2000, cat:'groceries'}
+    ]
+  },
+  achievements: []
+};
+
+let chartInstance = null, trendChartInstance = null, goalChartInstances = {};
+let expandedGoals    = new Set();
+let currentViewMonth = new Date().toISOString().slice(0,7);
+let undoStack = [], redoStack = [];
+
+// =============================================================================
+// HELPERS — unchanged
+// =============================================================================
+function formatCurrency(amount) {
+  const sym = state.settings.currencySymbol || '₨';
+  return sym + (amount||0).toLocaleString('en-PK', {minimumFractionDigits:0, maximumFractionDigits:2});
+}
+function escapeHtml(str) { const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+function showToast(msg, type) {
+  const ex=document.querySelector('.toast'); if(ex) ex.remove();
+  const t=document.createElement('div'); t.className='toast '+type;
+  t.innerHTML=(type==='success'?'✅ ':type==='error'?'❌ ':'ℹ️ ')+msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),3000);
+}
+function getMonthKey(d)    { const dd=new Date(d); return dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0'); }
+function getMonthLabel(key){ const [y,m]=key.split('-'); return new Date(y,m-1).toLocaleString('default',{month:'long'})+' '+y; }
+function shiftMonth(key,delta){ const [y,m]=key.split('-').map(Number); return getMonthKey(new Date(y,m-1+delta,1)); }
+function getTransactionsForMonth(key) { return state.transactions.filter(t=>getMonthKey(t.date)===key); }
+function getBudgetsForMonth(key) { return state.budgets[key] || Object.fromEntries(Object.entries(CATEGORIES).map(([k,v])=>[k,v.budget])); }
+
+function saveState() {
+  localStorage.setItem('questLedgerData', JSON.stringify(state));
+  syncToCloud();
+}
+function pushHistory() { undoStack.push(JSON.stringify(state)); if(undoStack.length>5) undoStack.shift(); redoStack=[]; updateUndoRedoBtns(); }
+function undoAction()  { if(!undoStack.length) return; redoStack.push(JSON.stringify(state)); state=JSON.parse(undoStack.pop()); saveState(); renderAll(); updateUndoRedoBtns(); showToast('Undone','success'); }
+function redoAction()  { if(!redoStack.length) return; undoStack.push(JSON.stringify(state)); state=JSON.parse(redoStack.pop()); saveState(); renderAll(); updateUndoRedoBtns(); showToast('Redone','success'); }
+function updateUndoRedoBtns() { document.getElementById('undoBtn').disabled=undoStack.length===0; document.getElementById('redoBtn').disabled=redoStack.length===0; }
+
+// =============================================================================
+// FIREBASE SYNC
+// syncToCloud()        — debounced write (500 ms), called from saveState()
+// startCloudListener() — real-time onSnapshot listener, merges remote changes
+// =============================================================================
+function syncToCloud() {
+  if (!FIREBASE_ENABLED || !syncEnabled || !db || !auth) return;
+  if (syncTimeout) clearTimeout(syncTimeout);
+  setSyncStatus('syncing');
+  syncTimeout = setTimeout(() => {
+    const user = auth.currentUser;
+    if (!user) { setSyncStatus('offline'); return; }
+    db.collection('questLedger').doc('sharedState').set({
+      state:       JSON.stringify(state),
+      lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+      uid:         user.uid          // for debugging — not used in logic
+    })
+    .then(()  => setSyncStatus('ok'))
+    .catch(err => { console.warn('Sync write error:', err); setSyncStatus('error'); });
+  }, 500);
+}
+
+function startCloudListener() {
+  if (!FIREBASE_ENABLED || !db || !auth || _cloudListenerActive) return;
+
+  auth.onAuthStateChanged(user => {
+    if (!user) { setSyncStatus('offline'); return; }
+    setSyncStatus('ok');
+
+    // Guard against attaching the listener twice (e.g. hot-reload)
+    if (_cloudListenerActive) return;
+    _cloudListenerActive = true;
+
+    const docRef = db.collection('questLedger').doc('sharedState');
+
+    docRef.onSnapshot(doc => {
+      // Ignore if we're mid-write (syncEnabled=false) to prevent echo loops
+      if (!syncEnabled) return;
+
+      if (doc.exists && doc.data() && doc.data().state) {
+        let remote;
+        try { remote = JSON.parse(doc.data().state); }
+        catch(e) { console.warn('Could not parse remote state'); return; }
+
+        // Only apply if remote differs from local to avoid unnecessary re-renders
+        const localJson  = JSON.stringify(state);
+        const remoteJson = JSON.stringify(remote);
+        if (remoteJson === localJson) return;
+
+        // Merge: apply remote, then persist locally
+        syncEnabled = false;
+        state = remote;
+
+        // Ensure mandatory fields that older saves might be missing
+        if (!state.goalContributions)        state.goalContributions = [];
+        if (!state.budgets)                  state.budgets = {};
+        if (!state.achievements)             state.achievements = [];
+        if (!state.settings.quickLogs)       state.settings.quickLogs = DEFAULT_QUICK_LOGS;
+
+        localStorage.setItem('questLedgerData', JSON.stringify(state));
+        renderAll();
+        syncEnabled = true;
+        setSyncStatus('ok');
+        showToast('☁️ Synced from cloud', 'success');
+      }
+    }, err => {
+      console.warn('Cloud listener error:', err);
+      setSyncStatus('error');
+    });
+  });
+
+  // Detect online/offline transitions
+  window.addEventListener('online',  () => { setSyncStatus('syncing'); syncToCloud(); });
+  window.addEventListener('offline', () => setSyncStatus('offline'));
+}
+
+// =============================================================================
+// [P1-F2]  SOUND TOGGLE
+// =============================================================================
+function toggleSound() {
+  const nowMuted = !AudioEngine.isMuted();
+  AudioEngine.setMuted(nowMuted);
+  const btn = document.getElementById('soundToggleBtn');
+  btn.textContent = nowMuted ? '🔇' : '🔊';
+  btn.classList.toggle('muted', nowMuted);
+  if(!nowMuted) AudioEngine.coin(); // play confirmation beep when unmuting
+}
+
+// =============================================================================
+// [P1-F6]  THEME TOGGLE — icon updates correctly in both modes
+// =============================================================================
+function toggleTheme() {
+  document.body.classList.toggle('light-theme');
+  const isLight = document.body.classList.contains('light-theme');
+  localStorage.setItem('qlTheme', isLight ? 'light' : 'dark');
+  document.getElementById('themeToggleBtn').textContent = isLight ? '☀️' : '🌙';
+}
+function applyStoredTheme() {
+  const isLight = localStorage.getItem('qlTheme') === 'light';
+  if(isLight) document.body.classList.add('light-theme');
+  document.getElementById('themeToggleBtn').textContent = isLight ? '☀️' : '🌙';
+  // Restore sound mute state
+  const btn = document.getElementById('soundToggleBtn');
+  if(AudioEngine.isMuted()){ btn.textContent='🔇'; btn.classList.add('muted'); }
+}
+
+// Helper: get player object by id
+function getPlayer(pid) {
+  return state.players.find(p => p.id === pid) || null;
+}
+// Helper: colour index for a player (cycles through palette)
+function playerColorIdx(pid) {
+  const idx = state.players.findIndex(p => p.id === pid);
+  return ((idx % 5) + 5) % 5;
+}
+
+function renderPlayers() {
+  const bar = document.getElementById('playersBar');
+  if (!bar) return;
+
+  // Remove old player cards (keep synergy orb + manage button)
+  bar.querySelectorAll('.player-card').forEach(el => el.remove());
+
+  const orb = document.getElementById('synergyOrbWrap');
+  const levelUpBase = state.settings.levelUpBase || 100;
+
+  state.players.forEach((p, idx) => {
+    const ci        = idx % 5;
+    const todayStr  = new Date().toISOString().slice(0,10);
+    const yestStr   = new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const lastLog   = state.transactions.filter(t=>t.player===p.id).map(t=>t.date).sort().pop() || null;
+    const ringClass = lastLog===todayStr ? 'green' : lastLog===yestStr ? 'yellow' : 'grey';
+    const xpPct     = Math.min(100, (p.xp / (p.level * levelUpBase)) * 100);
+    const title     = resolvePlayerTitle(p.id);
+
+    const card = document.createElement('div');
+    card.className = 'player-card';
+    card.innerHTML = `
+      <div class="player-avatar pav-${ci}" style="position:relative;" onclick="openAvatarPickerForPlayer('${p.id}')">
+        <span class="player-avatar-emoji">${p.avatar}</span>
+        <span class="status-ring ${ringClass}" style="position:absolute;bottom:1px;right:1px;width:13px;height:13px;border-radius:50%;border:2px solid var(--bg-card);"></span>
+      </div>
+      <div class="player-info">
+        <div class="player-name" ondblclick="inlineRenamePLayer('${p.id}')" style="cursor:pointer;" title="Double-click to rename">${escapeHtml(p.name)}</div>
+        ${title ? `<div class="player-title">${title}</div>` : ''}
+        <div class="player-role">Player ${idx+1}</div>
+        <div class="player-level" style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;">Lv.${p.level} — ${p.xp}/${p.level*levelUpBase} XP</div>
+        <div class="xp-bar-wrap"><div class="xp-bar-fill pxp-${ci}" style="width:${xpPct}%"></div></div>
+      </div>`;
+    bar.insertBefore(card, orb);
+  });
+
+  // Update synergy
+  const synergyEl = document.getElementById('synergyLevel');
+  if (synergyEl) synergyEl.textContent = state.synergy.level;
+
+  // Refresh player dropdowns everywhere
+  refreshPlayerDropdowns();
+}
+
+// Refresh all player <select> elements dynamically
+function refreshPlayerDropdowns() {
+  const opts = state.players.map(p => `<option value="${p.id}">${p.avatar} ${escapeHtml(p.name)}</option>`).join('');
+  ['txnPlayer','editTxnPlayer'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = opts;
+    // Restore selection if still valid
+    if (state.players.find(p => p.id === current)) sel.value = current;
+  });
+}
+
+function updateStatusRings() {
+  // Now handled inside renderPlayers() — no-op kept for call-site compat
+}
+
+function inlineRenamePLayer(pid) {
+  const p = getPlayer(pid);
+  if (!p) return;
+  const name = prompt('New name for this player:', p.name);
+  if (name && name.trim()) {
+    p.name = name.trim();
+    saveState();
+    renderPlayers();
+  }
+}
+
+// =============================================================================
+// [P1-F6]  HP BAR CATEGORY ICON PULSE — helper called by submitTransaction
+// Finds the .cat-icon span for the given category key and triggers animation.
+// =============================================================================
+function pulseHpBarIcon(categoryKey) {
+  // HP bars are rendered as innerHTML, so we find by data attribute
+  const allIcons = document.querySelectorAll('#hpBars .cat-icon[data-cat]');
+  allIcons.forEach(el => {
+    if(el.dataset.cat === categoryKey){
+      el.classList.remove('cat-icon-pulse'); // reset in case already playing
+      void el.offsetWidth;                   // force reflow
+      el.classList.add('cat-icon-pulse');
+      el.addEventListener('animationend', ()=>el.classList.remove('cat-icon-pulse'), {once:true});
+    }
+  });
+}
+
+// =============================================================================
+// RENDER FUNCTIONS — all original, with [P1] additions noted inline
+// =============================================================================
+function renderAll() {
+  renderPlayers();
+  renderStreak();
+  populateMonthSelector();
+  renderHPBars();
+  renderGoals();
+  renderTransactions();
+  renderLeaderboard();
+  renderChart();
+  renderMoMCard();
+  renderTrendChart();
+  renderPartyStats();
+  renderWeeklyChallenge();
+  renderAchievements();
+  updateUndoRedoBtns();
+  setupQuickLogs();
+  setupGoalDragDrop();
+  updateStatusRings();   // [P1-F17]
+  renderPrefillHints();  // [P2-F14]
+  renderInsights();      // [P4-F1]
+  renderStory();         // [P4-F4]
+  renderSimulator();     // [P4-F13]
+}
+
+function renderPlayers() {
+  const s=state.settings;
+  // renderPlayers is now fully dynamic — just update synergy
+  document.getElementById('synergyLevel').textContent = state.synergy.level;
+  document.getElementById('p1Level').textContent = p1.level;
+  document.getElementById('p1XP').textContent    = p1.xp;
+  document.getElementById('p1Next').textContent  = p1.level*(s.levelUpBase);
+  document.getElementById('p1Bar').style.width   = Math.min(100,(p1.xp/(p1.level*s.levelUpBase))*100)+'%';
+  document.getElementById('p2Level').textContent = p2.level;
+  document.getElementById('p2XP').textContent    = p2.xp;
+  document.getElementById('p2Next').textContent  = p2.level*(s.levelUpBase);
+  document.getElementById('p2Bar').style.width   = Math.min(100,(p2.xp/(p2.level*s.levelUpBase))*100)+'%';
+  document.getElementById('synergyLevel').textContent = state.synergy.level;
+  document.getElementById('p1Name').textContent  = s.p1Name;
+  document.getElementById('p2Name').textContent  = s.p2Name;
+  document.getElementById('p1AvatarEl').childNodes[0].textContent = s.p1Avatar;
+  document.getElementById('p2AvatarEl').childNodes[0].textContent = s.p2Avatar;
+  const p1Sel=document.getElementById('txnPlayer').options[0]; if(p1Sel) p1Sel.textContent=`${s.p1Avatar} ${s.p1Name}`;
+  const p2Sel=document.getElementById('txnPlayer').options[1]; if(p2Sel) p2Sel.textContent=`${s.p2Avatar} ${s.p2Name}`;
+  // [P3-F9] Resolve and display unlockable titles
+  const t1El = document.getElementById('p1Title');
+  const t2El = document.getElementById('p2Title');
+  if (t1El) t1El.textContent = resolvePlayerTitle('p1');
+  if (t2El) t2El.textContent = resolvePlayerTitle('p2');
+}
+
+function renderStreak() {
+  document.getElementById('streakCount').textContent      = state.streak.count;
+  document.getElementById('streakMultiplier').textContent = 'x'+state.streak.multiplier.toFixed(1);
+}
+
+function populateMonthSelector() {
+  const sel=document.getElementById('monthSelector');
+  const months=[...new Set([...state.transactions.map(t=>getMonthKey(t.date)), currentViewMonth, getMonthKey(new Date())])].sort();
+  sel.innerHTML=months.map(m=>`<option value="${m}" ${m===currentViewMonth?'selected':''}>${getMonthLabel(m)}</option>`).join('');
+  document.getElementById('pastBadge').innerHTML =
+    currentViewMonth!==getMonthKey(new Date())
+      ? '<span class="viewing-past-badge">📜 Past/Future month</span>'
+      : '';
+}
+
+function renderHPBars() {
+  const container=document.getElementById('hpBars');
+  const monthTxns=getTransactionsForMonth(currentViewMonth);
+  const budgets=getBudgetsForMonth(currentViewMonth);
+  const spent={}; Object.keys(CATEGORIES).forEach(k=>spent[k]=0);
+  monthTxns.forEach(t=>{ if(spent[t.category]!==undefined) spent[t.category]+=t.amount; });
+
+  container.innerHTML='';
+  Object.entries(CATEGORIES).forEach(([key,cat])=>{
+    const budget=budgets[key]||cat.budget;
+    const used=spent[key]||0;
+    const pct=Math.max(0,Math.min(100,((budget-used)/budget)*100));
+    let hpClass='hp-green'; let critical='';
+    if(pct<=25){ hpClass='hp-red'; critical='hp-critical'; }
+    else if(pct<=50) hpClass='hp-yellow';
+
+    // [P1-F6] cat-icon now carries data-cat for pulse targeting
+    container.innerHTML+=`
+      <div class="hp-category">
+        <div class="hp-header">
+          <span><span class="cat-icon" data-cat="${key}">${cat.icon}</span> ${cat.name}</span>
+          <span>${formatCurrency(used)} / ${formatCurrency(budget)}
+            <button onclick="inlineEditBudget('${key}')" style="background:none;border:1px solid transparent;border-radius:6px;cursor:pointer;padding:2px 4px;">✏️</button>
+          </span>
+        </div>
+        <div class="hp-bar-bg"><div class="hp-bar-fill ${hpClass} ${critical}" style="width:${pct}%"></div></div>
+      </div>`;
+  });
+}
+
+function inlineEditBudget(key) {
+  const current=getBudgetsForMonth(currentViewMonth)[key];
+  const newVal=prompt(`Budget for ${CATEGORIES[key].name}:`, current);
+  if(newVal && !isNaN(parseFloat(newVal)) && parseFloat(newVal)>0) {
+    if(!state.budgets[currentViewMonth]) state.budgets[currentViewMonth]={};
+    state.budgets[currentViewMonth][key]=parseFloat(newVal);
+    saveState(); renderHPBars();
+  }
+}
+
+function renderGoals() {
+  const container=document.getElementById('goalsList');
+  if(!state.goals.length){ container.innerHTML='<div class="empty-state">No active quests. Click + New Quest to begin!</div>'; return; }
+  container.innerHTML=state.goals.map(g=>{
+    const pct=Math.min(100,(g.current/g.target)*100);
+    const isExpanded=expandedGoals.has(g.id);
+    const isComplete=g.current>=g.target;
+
+    // [P3-F18] Sparkline SVG (empty string if < 2 data points)
+    const sparkSvg = buildSparkline(g.id);
+
+    // [P3-F7] Milestone row
+    const milestoneHtml = buildMilestoneRow(pct);
+
+    // [P3-F7] Completion banner (only when 100%)
+    const completeBanner = isComplete
+      ? `<div class="goal-complete-banner">🎉 Quest Complete! Well done, adventurers!</div>`
+      : '';
+
+    return `<div class="quest-goal" data-id="${g.id}">
+      <div class="quest-header">
+        <span>🎯 ${escapeHtml(g.name)}</span>
+        <span>${formatCurrency(g.current)} / ${formatCurrency(g.target)}</span>
+      </div>
+      ${milestoneHtml}
+      <div class="quest-bar-bg"><div class="quest-bar-fill" style="width:${pct}%"></div></div>
+      <div class="goal-meta-row">
+        <span>${pct.toFixed(1)}% · ${formatCurrency(g.target-g.current)} left</span>
+        ${sparkSvg}
+      </div>
+      ${completeBanner}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+        <input type="number" id="add-${g.id}" placeholder="Add funds" style="flex:1;min-width:80px;background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-main);">
+        <button class="btn btn-secondary" style="padding:6px 12px;" onclick="addToGoal('${g.id}',document.getElementById('add-${g.id}').value)">💰 Add</button>
+        <button class="btn btn-secondary" style="padding:6px 12px;" onclick="toggleForecast('${g.id}')">📊 ${isExpanded?'Hide':'Forecast'}</button>
+        <button class="btn btn-danger"    style="padding:6px 12px;" onclick="deleteGoal('${g.id}')">🗑️</button>
+      </div>
+      ${isExpanded ? renderForecastPanel(g) : ''}
+    </div>`;
+  }).join('');
+  state.goals.forEach(g=>{ if(expandedGoals.has(g.id)) initGoalChart(g.id); });
+}
+
+function renderForecastPanel(g) {
+  const contribs=(state.goalContributions||[]).filter(c=>c.goalId===g.id);
+  const totalContrib=contribs.reduce((s,c)=>s+c.amount,0);
+  const monthsElapsed=Math.max(1, Math.ceil((Date.now()-new Date(g.createdDate))/(1000*3600*24*30.44)));
+  const rate=totalContrib/monthsElapsed;
+  const remaining=g.target-g.current;
+  const projected=remaining>0&&rate>0 ? new Date(Date.now()+(remaining/rate)*30.44*86400000) : null;
+  const forecastHtml=remaining<=0
+    ? '<div style="color:var(--accent-green);">✅ Complete!</div>'
+    : projected
+      ? `<div>📈 At ${formatCurrency(rate)}/mo → done by ${projected.toLocaleDateString()}</div>`
+      : '<div style="color:var(--text-dim);">Add contributions to see forecast.</div>';
+  return `<div class="forecast-panel">
+    ${forecastHtml}
+    <div style="margin-top:10px;">
+      <label style="font-size:0.8rem;color:var(--text-dim);">What-If monthly: </label>
+      <input type="range" class="whatif-slider" id="whatif-${g.id}"
+        min="0" max="${Math.max(1000,Math.ceil(g.target/12))}" step="100" value="${Math.round(rate)}"
+        onchange="onWhatIfChange('${g.id}',this.value)">
+      <span id="whatif-val-${g.id}" style="font-family:var(--font-mono);color:var(--accent-cyan);">${formatCurrency(rate)}/mo</span>
+    </div>
+    <div class="goal-timeline-chart"><canvas id="goal-chart-${g.id}"></canvas></div>
+  </div>`;
+}
+
+function initGoalChart(goalId) {
+  const g=state.goals.find(x=>x.id===goalId); if(!g) return;
+  const canvas=document.getElementById('goal-chart-'+goalId); if(!canvas) return;
+  if(goalChartInstances[goalId]) goalChartInstances[goalId].destroy();
+  const months=6;
+  const rate=(state.goalContributions||[]).filter(c=>c.goalId===goalId).reduce((s,c)=>s+c.amount,0)/Math.max(1,months);
+  const labels=[]; const data=[];
+  let balance=g.current;
+  for(let i=0;i<months;i++){
+    const d=new Date(); d.setMonth(d.getMonth()+i);
+    labels.push(d.toLocaleString('default',{month:'short'}));
+    balance=Math.min(g.target, balance+rate);
+    data.push(Math.round(balance));
+  }
+  goalChartInstances[goalId]=new Chart(canvas,{
+    type:'line',
+    data:{labels, datasets:[{label:'Projected Balance',data, borderColor:'#a855f7',backgroundColor:'rgba(168,85,247,0.1)',tension:0.3,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:g.target}}}
+  });
+}
+
+function onWhatIfChange(goalId, val) {
+  document.getElementById(`whatif-val-${goalId}`).textContent=formatCurrency(val)+'/mo';
+}
+function toggleForecast(id){ if(expandedGoals.has(id)) expandedGoals.delete(id); else expandedGoals.add(id); renderGoals(); }
+
+function addToGoal(goalId, amountStr) {
+  const amount=parseFloat(amountStr);
+  if(isNaN(amount)||amount<=0) return;
+  const g=state.goals.find(x=>x.id===goalId); if(!g) return;
+  const wasComplete = g.current >= g.target;
+  pushHistory();
+  g.current=Math.min(g.target, g.current+amount);
+  if(!state.goalContributions) state.goalContributions=[];
+  state.goalContributions.push({id:'c'+Date.now(), goalId, amount, date:new Date().toISOString().slice(0,10)});
+  saveState(); renderGoals();
+  if(!wasComplete && g.current>=g.target){
+    fireConfetti();
+    AudioEngine.goalComplete(); // [P1-F2]
+    fireGoalCompleteText(goalId); // [P3-F7] floating text
+    showToast(`🎉 ${g.name} complete!`,'success');
+  }
+}
+
+function deleteGoal(id) {
+  if(confirm('Delete this quest?')){ pushHistory(); state.goals=state.goals.filter(g=>g.id!==id); saveState(); renderGoals(); }
+}
+
+// =============================================================================
+// SUBMIT TRANSACTION — [P1] additions: coin sound, level-up fanfare, icon pulse
+// =============================================================================
+function submitTransaction() {
+  const date    = document.getElementById('txnDate').value;
+  const pid     = document.getElementById('txnPlayer').value;
+  const desc    = document.getElementById('txnDesc').value.trim();
+  const amount  = parseFloat(document.getElementById('txnAmount').value);
+  const category= document.getElementById('txnCategory').value;
+  if(!date||!desc||isNaN(amount)||amount<=0){ showToast('Please fill all fields correctly','error'); return; }
+
+  const player = getPlayer(pid);
+  if(!player){ showToast('Selected player not found','error'); return; }
+
+  pushHistory();
+  state.transactions.push({id:'t'+Date.now(), date, player:pid, desc, amount, category});
+
+  const xpGain = Math.round((state.settings.xpPerLog||10)*state.streak.multiplier);
+  player.xp    += xpGain;
+  player.txns  += 1;
+
+  // Check for level-up
+  const levelUpBase = state.settings.levelUpBase||100;
+  while(player.xp >= player.level*levelUpBase){
+    player.xp -= player.level*levelUpBase;
+    player.level++;
+    fireConfetti();
+    AudioEngine.levelUp();
+    showToast(`⚔️ ${player.name} reached Level ${player.level}!`,'success');
+  }
+
+  state.synergy.xp += (state.settings.synergyXpPerLog||5);
+  if(state.synergy.xp >= state.synergy.level*(state.settings.synergyLevelThreshold||50)){
+    state.synergy.level++;
+    state.synergy.xp=0;
+    showToast(`🔗 Synergy Level ${state.synergy.level}!`,'success');
+  }
+
+  updateStreak(date);
+  AudioEngine.coin();
+
+  recentPulsedCategories.push(category);
+  saveState();
+  renderAll();
+  pulseHpBarIcon(category);
+
+  document.getElementById('txnDesc').value='';
+  document.getElementById('txnAmount').value='';
+  showToast('Quest logged! +'+xpGain+' XP','success');
+}
+
+function updateStreak(dateStr) {
+  const today=new Date(dateStr); today.setHours(0,0,0,0);
+  const last=state.streak.lastDate ? new Date(state.streak.lastDate) : null;
+  if(!last) state.streak.count=1;
+  else {
+    const diff=(today-last)/86400000;
+    if(diff===1)   state.streak.count++;
+    else if(diff>1) state.streak.count=1;
+  }
+  state.streak.lastDate=dateStr;
+  state.streak.multiplier=Math.min(state.settings.streakMultiplierCap||3, 1+(state.streak.count-1)*0.1);
+}
+
+// =============================================================================
+// LEADERBOARD
+// =============================================================================
+function renderLeaderboard() {
+  const month = getTransactionsForMonth(currentViewMonth);
+  const rows = state.players.map((p, idx) => {
+    const count = month.filter(t=>t.player===p.id).length;
+    const spent = month.filter(t=>t.player===p.id).reduce((s,t)=>s+t.amount,0);
+    return { p, idx, count, spent };
+  }).sort((a,b)=>b.count-a.count);
+
+  const medals = ['🥇','🥈','🥉'];
+  document.getElementById('leaderboard').innerHTML = rows.map((r,rank) => `
+    <div class="leaderboard-row">
+      <div class="lb-rank ${rank===0?'gold':rank===1?'silver':''}">${medals[rank]||rank+1}</div>
+      <span style="font-size:1.2rem;">${r.p.avatar}</span>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:0.9rem;">${escapeHtml(r.p.name)}</div>
+        <div style="font-size:0.75rem;color:var(--text-dim);">${r.count} logs · ${formatCurrency(r.spent)}</div>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-dim);font-family:var(--font-mono);">Lv.${r.p.level}</div>
+    </div>`).join('');
+}
+
+// =============================================================================
+// CHARTS
+// =============================================================================
+function renderChart() {
+  const ctx=document.getElementById('spendingChart'); if(!ctx) return;
+  const monthTxns=getTransactionsForMonth(currentViewMonth);
+  const data={}; Object.keys(CATEGORIES).forEach(k=>data[k]=0);
+  monthTxns.forEach(t=>{ if(data[t.category]!==undefined) data[t.category]+=t.amount; });
+  const labels=[],vals=[],colors=[];
+  Object.entries(CATEGORIES).forEach(([k,v])=>{ if(data[k]>0){ labels.push(v.name); vals.push(data[k]); colors.push(v.color); } });
+  if(chartInstance) chartInstance.destroy();
+  if(vals.length===0){
+    chartInstance=new Chart(ctx,{type:'doughnut',data:{labels:['No data'],datasets:[{data:[1],backgroundColor:['#2a2a45']}]},options:{plugins:{legend:{display:false}}}});
+  } else {
+    chartInstance=new Chart(ctx,{
+      type:'doughnut',
+      data:{labels,datasets:[{data:vals,backgroundColor:colors,borderColor:'var(--bg-card)',borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'var(--text-dim)',font:{size:10},boxWidth:10}}}}
+    });
+  }
+}
+
+function renderMoMCard() {
+  const container = document.getElementById('momCompare'); if (!container) return;
+  const curr = getTransactionsForMonth(currentViewMonth);
+  const prev = getTransactionsForMonth(shiftMonth(currentViewMonth, -1));
+  if (!curr.length && !prev.length) {
+    container.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">No data for comparison yet.</div>';
+    return;
+  }
+  // [P5] Show all categories that have any spend in either month
+  const activeCats = Object.keys(CATEGORIES).filter(k => {
+    const c = curr.filter(t=>t.category===k).reduce((s,t)=>s+t.amount,0);
+    const p = prev.filter(t=>t.category===k).reduce((s,t)=>s+t.amount,0);
+    return c > 0 || p > 0;
+  });
+  if (!activeCats.length) {
+    container.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">No spending data yet.</div>';
+    return;
+  }
+  container.innerHTML = activeCats.map(k => {
+    const c    = curr.filter(t=>t.category===k).reduce((s,t)=>s+t.amount,0);
+    const p    = prev.filter(t=>t.category===k).reduce((s,t)=>s+t.amount,0);
+    const diff = c - p;
+    const pct  = p > 0 ? Math.round((diff / p) * 100) : null;
+    let changeHtml = '';
+    if (p > 0 && diff !== 0) {
+      const cls   = diff > 0 ? 'up' : 'down';
+      const arrow = diff > 0 ? '▲' : '▼';
+      changeHtml  = `<div class="mom-change ${cls}">${arrow} ${formatCurrency(Math.abs(diff))} (${Math.abs(pct)}%) vs prev</div>`;
+    } else if (p === 0 && c > 0) {
+      changeHtml = `<div class="mom-change same">New this month</div>`;
+    }
+    return `<div class="mom-card">
+      <div class="mom-card-label">${CATEGORIES[k].icon} ${CATEGORIES[k].name}</div>
+      <div class="mom-card-value">${formatCurrency(c)}</div>
+      ${changeHtml}
+    </div>`;
+  }).join('');
+}
+
+function renderTrendChart() {
+  const ctx=document.getElementById('trendChart'); if(!ctx) return;
+  const allMonths=[...new Set(state.transactions.map(t=>getMonthKey(t.date)))].sort().slice(-6);
+  if(!allMonths.length){ if(trendChartInstance) trendChartInstance.destroy(); return; }
+  const datasets=Object.entries(CATEGORIES).map(([k,v])=>({
+    label:v.name,
+    data:allMonths.map(m=>getTransactionsForMonth(m).filter(t=>t.category===k).reduce((s,t)=>s+t.amount,0)),
+    backgroundColor:v.color+'cc', borderColor:v.color, borderWidth:1, stack:'a'
+  })).filter(ds=>ds.data.some(d=>d>0));
+  if(trendChartInstance) trendChartInstance.destroy();
+  trendChartInstance=new Chart(ctx,{
+    type:'bar',
+    data:{labels:allMonths.map(m=>getMonthLabel(m).split(' ')[0]+' '+m.split('-')[0].slice(2)), datasets},
+    options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true,ticks:{color:'var(--text-dim)'}}},plugins:{legend:{position:'bottom',labels:{color:'var(--text-dim)',font:{size:10},boxWidth:10}}}}
+  });
+}
+
+function renderPartyStats() {
+  const totalXP    = state.players.reduce((s,p)=>s+p.xp,0);
+  const totalTxns  = state.transactions.length;
+  const totalSaved = state.goals.reduce((s,g)=>s+g.current,0);
+  document.getElementById('partyStats').innerHTML = `
+    <div class="party-stat-card"><div class="party-stat-icon">✨</div><div class="party-stat-value">${totalXP}</div><div class="party-stat-label">Total XP</div></div>
+    <div class="party-stat-card"><div class="party-stat-icon">📝</div><div class="party-stat-value">${totalTxns}</div><div class="party-stat-label">Logs</div></div>
+    <div class="party-stat-card"><div class="party-stat-icon">💰</div><div class="total-saved-value">${formatCurrency(totalSaved)}</div><div class="party-stat-label">Total Saved</div></div>
+    <div class="party-stat-card"><div class="party-stat-icon">🔗</div><div class="party-stat-value">Lv.${state.synergy.level}</div><div class="party-stat-label">Synergy</div></div>
+    <div class="party-stat-card"><div class="party-stat-icon">🔥</div><div class="party-stat-value">${state.streak.count}</div><div class="party-stat-label">Streak</div></div>
+    <div class="party-stat-card"><div class="party-stat-icon">⚔️</div><div class="party-stat-value">${state.players.length}</div><div class="party-stat-label">Players</div></div>`;
+}
+
+function renderWeeklyChallenge() {
+  const weekAgo=new Date(Date.now()-7*86400000);
+  const weekTxns=state.transactions.filter(t=>new Date(t.date)>=weekAgo);
+  const earnedXP=weekTxns.length*(state.settings.xpPerLog||10);
+  const goalXP=Math.round(50*(state.streak.multiplier||1));
+  const pct=Math.min(100,(earnedXP/goalXP)*100);
+  document.getElementById('weeklyChallenge').innerHTML=`
+    <div class="challenge-card">
+      <div class="challenge-title">This Week's Challenge</div>
+      <div class="challenge-desc">Earn ${goalXP} XP in 7 days</div>
+      <div class="challenge-bar-bg"><div class="challenge-bar-fill" style="width:${pct}%"></div></div>
+      <div class="challenge-footer"><span>${earnedXP} / ${goalXP} XP</span><span>${weekTxns.length} logs this week</span></div>
+    </div>`;
+}
+
+function renderAchievements() {
+  const ACHIEVE=[
+    {id:'first_log',   icon:'⚔️',  name:'First Quest',      desc:'Log your first expense',           check:()=>state.transactions.length>=1},
+    {id:'streak_3',    icon:'🔥',  name:'On Fire',           desc:'3-day logging streak',              check:()=>state.streak.count>=3},
+    {id:'streak_7',    icon:'💥',  name:'Weekly Warrior',    desc:'7-day logging streak',              check:()=>state.streak.count>=7},
+    {id:'synergy_3',   icon:'🔗',  name:'In Sync',           desc:'Reach Synergy Level 3',             check:()=>state.synergy.level>=3},
+    {id:'lvl5_p1',     icon:'⭐',  name:'Rising Star P1',    desc:'Player 1 reaches Level 5',          check:()=>{ const p=state.players[0]; return p&&p.level>=5; }},
+    {id:'lvl5_p2',     icon:'🌟',  name:'Rising Star P2',    desc:'Player 2 reaches Level 5',          check:()=>{ const p=state.players[1]; return p&&p.level>=5; }},
+    {id:'goal_done',   icon:'🏆',  name:'Goal Crusher',      desc:'Complete a savings goal',           check:()=>state.goals.some(g=>g.current>=g.target)},
+    {id:'coffee_10',   icon:'☕',  name:'Caffeine Count',    desc:'Log 10 coffee expenses',            check:()=>state.transactions.filter(t=>t.category==='coffee').length>=10},
+    {id:'logs_50',     icon:'📜',  name:'Chronicler',        desc:'Log 50 total transactions',         check:()=>state.transactions.length>=50},
+    {id:'budget_set',  icon:'🧮',  name:'Budget Sage',       desc:'Set a custom monthly budget',       check:()=>Object.keys(state.budgets).length>0},
+    // [P3-F7/F9] New achievements
+    {id:'milestone_25',icon:'⭐',  name:'Quarter Way',       desc:'Any goal reaches 25%',              check:()=>state.goals.some(g=>(g.current/g.target)>=0.25)},
+    {id:'milestone_50',icon:'💎',  name:'Halfway Hero',      desc:'Any goal reaches 50%',              check:()=>state.goals.some(g=>(g.current/g.target)>=0.5)},
+    {id:'milestone_75',icon:'🏆',  name:'Almost There',      desc:'Any goal reaches 75%',              check:()=>state.goals.some(g=>(g.current/g.target)>=0.75)},
+    {id:'titled',      icon:'🎖️',  name:'Titled Adventurer', desc:'Earn your first player title',      check:()=>!!(resolvePlayerTitle('p1')||resolvePlayerTitle('p2'))},
+  ];
+
+  // Check newly unlocked achievements and play chime
+  ACHIEVE.forEach(a=>{
+    const wasUnlocked=state.achievements.includes(a.id);
+    const nowUnlocked=a.check();
+    if(nowUnlocked && !wasUnlocked){
+      state.achievements.push(a.id);
+      AudioEngine.achievement(); // [P1-F2]
+      showToast(`🏅 Achievement unlocked: ${a.name}!`,'success');
+    }
+  });
+
+  document.getElementById('badgesGrid').innerHTML=ACHIEVE.map(a=>{
+    const unlocked=state.achievements.includes(a.id)||a.check();
+    return `<div class="badge-card ${unlocked?'unlocked':'locked'}">
+      <span class="badge-icon">${a.icon}</span>
+      <div class="badge-name">${a.name}</div>
+      <div class="badge-desc">${a.desc}</div>
+      ${unlocked?'<div class="badge-unlocked-label">✓ UNLOCKED</div>':''}
+    </div>`;
+  }).join('');
+}
+
+function renderTransactions() {
+  const container=document.getElementById('txnList');
+  let filtered=state.transactions.slice().reverse();
+  const search=document.getElementById('txnSearch').value.toLowerCase();
+  const filterCat=document.getElementById('txnFilterCat').value;
+  const filterPlayer=document.getElementById('txnFilterPlayer').value;
+  if(search)       filtered=filtered.filter(t=>t.desc.toLowerCase().includes(search)||t.category.includes(search));
+  if(filterCat)    filtered=filtered.filter(t=>t.category===filterCat);
+  if(filterPlayer) filtered=filtered.filter(t=>t.player===filterPlayer);
+  if(!filtered.length){ container.innerHTML='<div class="empty-state">No transactions found.</div>'; return; }
+  container.innerHTML=filtered.slice(0,30).map(t=>{
+    const p = getPlayer(t.player);
+    const pName  = p ? p.name   : t.player;
+    const pAvatar= p ? p.avatar : '👤';
+    return `
+    <div class="txn-item">
+      <span style="font-size:1.2rem;">${CATEGORIES[t.category]?.icon||'💸'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(t.desc)}</div>
+        <div style="font-size:0.75rem;color:var(--text-dim);">${t.date} · ${pAvatar} ${escapeHtml(pName)}</div>
+      </div>
+      <span style="font-weight:700;font-family:var(--font-mono);white-space:nowrap;">-${formatCurrency(t.amount)}</span>
+      <button onclick="openTxnEditModal('${t.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:4px 6px;">✏️</button>
+      <button onclick="deleteTxn('${t.id}')"       style="background:none;border:1px solid rgba(239,68,68,0.3);border-radius:6px;cursor:pointer;padding:4px 6px;color:var(--accent-crimson);">🗑️</button>
+    </div>`}).join('');
+}
+
+// =============================================================================
+// CRUD — unchanged originals
+// =============================================================================
+function deleteTxn(id){
+  if(confirm('Delete this transaction?')){ pushHistory(); state.transactions=state.transactions.filter(t=>t.id!==id); saveState(); renderAll(); }
+}
+function openTxnEditModal(id){
+  const txn=state.transactions.find(t=>t.id===id); if(!txn) return;
+  document.getElementById('editTxnId').value      = id;
+  document.getElementById('editTxnDesc').value    = txn.desc;
+  document.getElementById('editTxnAmount').value  = txn.amount;
+  document.getElementById('editTxnDate').value    = txn.date;
+  // populate category select
+  const catSel=document.getElementById('editTxnCategory');
+  catSel.innerHTML=Object.entries(CATEGORIES).map(([k,v])=>`<option value="${k}">${v.icon} ${v.name}</option>`).join('');
+  catSel.value=txn.category;
+  // populate player select dynamically
+  const playerSel=document.getElementById('editTxnPlayer');
+  playerSel.innerHTML=state.players.map(p=>`<option value="${p.id}">${p.avatar} ${escapeHtml(p.name)}</option>`).join('');
+  playerSel.value=txn.player;
+  document.getElementById('txnEditModal').classList.add('active');
+}
+function closeTxnEditModal(){ document.getElementById('txnEditModal').classList.remove('active'); }
+function saveTxnEdit(){
+  const id=document.getElementById('editTxnId').value;
+  const txn=state.transactions.find(t=>t.id===id); if(!txn) return;
+  pushHistory();
+  txn.desc    =document.getElementById('editTxnDesc').value;
+  txn.amount  =parseFloat(document.getElementById('editTxnAmount').value);
+  txn.date    =document.getElementById('editTxnDate').value;
+  txn.category=document.getElementById('editTxnCategory').value;
+  txn.player  =document.getElementById('editTxnPlayer').value;
+  saveState(); renderAll(); closeTxnEditModal();
+  showToast('Transaction updated','success');
+}
+
+function exportData(){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));
+  a.download='quest-ledger-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  showToast('Data exported','success');
+}
+function exportCSV(){
+  let csv='Date,Player,Description,Amount,Category\n';
+  state.transactions.forEach(t=>{
+    const p = getPlayer(t.player);
+    const pName = p ? p.name : t.player;
+    csv+=`${t.date},"${pName.replace(/"/g,'""')}","${t.desc.replace(/"/g,'""')}",${t.amount},"${CATEGORIES[t.category]?.name||t.category}"\n`;
+  });
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='quest-ledger-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  showToast('CSV exported','success');
+}
+function openImportModal(){ document.getElementById('importModal').classList.add('active'); }
+function closeImportModal(){ document.getElementById('importModal').classList.remove('active'); }
+function importData(){
+  try{
+    const parsed=JSON.parse(document.getElementById('importData').value);
+    state={...state,...parsed};
+    if(!state.goalContributions) state.goalContributions=[];
+    if(!state.budgets) state.budgets={};
+    saveState(); renderAll(); closeImportModal();
+    showToast('Data imported successfully','success');
+  }catch(e){ showToast('Invalid JSON — check your data','error'); }
+}
+function resetData(){ if(confirm('Reset ALL data? This cannot be undone.')){ localStorage.clear(); location.reload(); } }
+function clearTransactions(){ if(confirm('Clear all transaction logs?')){ pushHistory(); state.transactions=[]; saveState(); renderAll(); } }
+
+function openGoalModal(){ document.getElementById('goalModal').classList.add('active'); }
+function closeGoalModal(){ document.getElementById('goalModal').classList.remove('active'); }
+function addGoal(){
+  const name=document.getElementById('goalName').value.trim();
+  const target=parseFloat(document.getElementById('goalTarget').value);
+  const current=parseFloat(document.getElementById('goalCurrent').value)||0;
+  if(!name||!target||target<=0){ showToast('Enter a name and valid target amount','error'); return; }
+  state.goals.push({id:'g'+Date.now(), name, target, current, targetDate:document.getElementById('goalTargetDate').value||null, monthlyContribution:parseFloat(document.getElementById('goalMonthlyContribution').value)||0, createdDate:new Date().toISOString().slice(0,10)});
+  saveState(); renderGoals(); closeGoalModal();
+  document.getElementById('goalName').value=''; document.getElementById('goalTarget').value=''; document.getElementById('goalCurrent').value='0';
+  showToast('New quest created!','success');
+}
+
+function openBudgetModal(){
+  document.getElementById('budgetModalMonth').textContent=getMonthLabel(currentViewMonth);
+  const budgets=getBudgetsForMonth(currentViewMonth);
+  document.getElementById('budgetInputs').innerHTML=Object.entries(CATEGORIES).map(([k,v])=>`
+    <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:10px;">
+      <label style="font-size:0.85rem;">${v.icon} ${v.name}</label>
+      <input id="budget-${k}" type="number" value="${budgets[k]||v.budget}" style="width:120px;background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-main);">
+    </div>`).join('');
+  document.getElementById('budgetModal').classList.add('active');
+}
+function closeBudgetModal(){ document.getElementById('budgetModal').classList.remove('active'); }
+function saveBudgets(){
+  const nb={};
+  Object.keys(CATEGORIES).forEach(k=>{
+    const inp=document.getElementById('budget-'+k);
+    if(inp) nb[k]=parseFloat(inp.value)||CATEGORIES[k].budget;
+  });
+  state.budgets[currentViewMonth]=nb; saveState(); renderHPBars(); closeBudgetModal();
+  showToast('Budgets saved','success');
+}
+function copyPreviousMonthBudgets(){
+  const prev=getBudgetsForMonth(shiftMonth(currentViewMonth,-1));
+  Object.entries(prev).forEach(([k,v])=>{ const inp=document.getElementById('budget-'+k); if(inp) inp.value=v; });
+  showToast('Previous month budgets copied','success');
+}
+
+// =============================================================================
+// [P6-F10]  TIME-TRAVEL REPLAY
+// Animates through every month that has data, updating all month-dependent
+// views at 500 ms intervals. Shows a progress bar and "Replaying: YYYY-MM"
+// label. A Stop button halts replay and restores the original month.
+// =============================================================================
+let _replayActive   = false;
+let _replayTimer    = null;
+let _replayOrigMonth = null;
+
+function startReplay() {
+  if (_replayActive) return;
+
+  // Collect all months that have transactions, sorted oldest→newest
+  const months = [...new Set(state.transactions.map(t => getMonthKey(t.date)))].sort();
+  if (months.length < 2) {
+    showToast('Need at least 2 months of data for Replay.', 'error');
+    return;
+  }
+
+  _replayActive    = true;
+  _replayOrigMonth = currentViewMonth;
+
+  // Show replay bar, disable nav controls during replay
+  document.getElementById('replayBar').classList.remove('hidden');
+  document.getElementById('replayStartBtn').disabled = true;
+  document.getElementById('monthPrevBtn').disabled   = true;
+  document.getElementById('monthNextBtn').disabled   = true;
+  document.getElementById('monthSelector').disabled  = true;
+
+  let idx = 0;
+
+  function step() {
+    if (!_replayActive || idx >= months.length) {
+      finishReplay(months);
+      return;
+    }
+
+    currentViewMonth = months[idx];
+
+    // Update progress UI
+    const pct = Math.round(((idx + 1) / months.length) * 100);
+    document.getElementById('replayProgressText').textContent =
+      `Replaying: ${getMonthLabel(months[idx])} (${idx + 1} / ${months.length})`;
+    document.getElementById('replayTrackFill').style.width = pct + '%';
+
+    // Update selector to match
+    const sel = document.getElementById('monthSelector');
+    if (sel) sel.value = currentViewMonth;
+
+    // Fade + render (reuses the P5 fade system)
+    fadeMonthTargets(() => {
+      renderHPBars();
+      renderChart();
+      renderLeaderboard();
+      renderMoMCard();
+      renderTrendChart();
+      renderInsights();
+      renderStory();
+      renderSimulator();
+      populateMonthSelector();
+    });
+
+    idx++;
+    _replayTimer = setTimeout(step, 500);
+  }
+
+  step();
+}
+
+function stopReplay() {
+  if (!_replayActive) return;
+  _replayActive = false;
+  if (_replayTimer) clearTimeout(_replayTimer);
+  // Restore original month
+  if (_replayOrigMonth) currentViewMonth = _replayOrigMonth;
+  finishReplay(null);
+  showToast('Replay stopped.', 'success');
+}
+
+function finishReplay(months) {
+  _replayActive = false;
+  if (_replayTimer) clearTimeout(_replayTimer);
+
+  document.getElementById('replayBar').classList.add('hidden');
+  document.getElementById('replayTrackFill').style.width = '0%';
+  document.getElementById('replayStartBtn').disabled = false;
+  document.getElementById('monthPrevBtn').disabled   = false;
+  document.getElementById('monthNextBtn').disabled   = false;
+  document.getElementById('monthSelector').disabled  = false;
+
+  if (months) {
+    // Replay finished naturally — stay on last replayed month
+    showToast(`Replay complete! ${months.length} months reviewed.`, 'success');
+  }
+
+  // Final render of current month
+  renderMonthDependent();
+}
+
+// =============================================================================
+// [P6-F8]  SKELETON / SHIMMER LOADING STATES
+// showSkeleton(panelId, type) injects a shimmer placeholder over a panel.
+// hideSkeleton(panelId) removes it (with a fade).
+// Used during initial load and month switching to guarantee ≥200ms visibility.
+// =============================================================================
+
+function buildSkeletonHTML(type) {
+  if (type === 'hpbars') {
+    return Array(5).fill(0).map(() => `
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <div class="skeleton-line short" style="width:45%;margin-bottom:0;"></div>
+          <div class="skeleton-line short" style="width:25%;margin-bottom:0;"></div>
+        </div>
+        <div class="skeleton-line bar"></div>
+      </div>`).join('');
+  }
+  if (type === 'chart') {
+    return `<div class="skeleton-chart"></div>`;
+  }
+  if (type === 'list') {
+    return Array(4).fill(0).map(() => `
+      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div class="skeleton-line" style="width:32px;height:32px;border-radius:50%;margin-bottom:0;flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div class="skeleton-line short" style="margin-bottom:6px;"></div>
+          <div class="skeleton-line" style="width:40%;height:10px;"></div>
+        </div>
+        <div class="skeleton-line" style="width:70px;margin-bottom:0;"></div>
+      </div>`).join('');
+  }
+  // generic
+  return `
+    <div class="skeleton-line tall"></div>
+    <div class="skeleton-line short"></div>
+    <div class="skeleton-line"></div>
+    <div class="skeleton-line short" style="width:75%;"></div>`;
+}
+
+function showSkeleton(containerId, type = 'generic') {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  // Remove any existing skeleton first
+  hideSkeleton(containerId, true);
+  const overlay = document.createElement('div');
+  overlay.className = 'panel-loading-overlay';
+  overlay.id        = 'skel-' + containerId;
+  overlay.innerHTML = buildSkeletonHTML(type);
+  el.style.position = 'relative';
+  el.appendChild(overlay);
+}
+
+function hideSkeleton(containerId, immediate = false) {
+  const overlay = document.getElementById('skel-' + containerId);
+  if (!overlay) return;
+  if (immediate) { overlay.remove(); return; }
+  overlay.classList.add('gone');
+  setTimeout(() => overlay.remove(), 320);
+}
+
+// Wraps a render call with a minimum-visible skeleton (≥200ms as spec'd)
+function withSkeleton(containerId, skeletonType, renderFn, minMs = 220) {
+  showSkeleton(containerId, skeletonType);
+  const t0 = Date.now();
+  // Run render on next tick so skeleton paints first
+  requestAnimationFrame(() => {
+    renderFn();
+    const elapsed = Date.now() - t0;
+    const wait    = Math.max(0, minMs - elapsed);
+    setTimeout(() => hideSkeleton(containerId), wait);
+  });
+}
+
+// =============================================================================
+// NAVIGATE MONTH — unchanged logic, now uses skeleton during load
+// =============================================================================
+function navigateMonth(delta){
+  const months=[...new Set([...state.transactions.map(t=>getMonthKey(t.date)), currentViewMonth, getMonthKey(new Date())])].sort();
+  const idx=months.indexOf(currentViewMonth);
+  if(idx+delta>=0&&idx+delta<months.length) currentViewMonth=months[idx+delta];
+  // [P6-F8] Show skeletons while new month data loads
+  showSkeleton('hpBars',       'hpbars');
+  showSkeleton('spendingChart','chart');
+  showSkeleton('trendChart',   'chart');
+  renderMonthDependent();
+}
+function onMonthChange(val){
+  currentViewMonth=val;
+  showSkeleton('hpBars',       'hpbars');
+  showSkeleton('spendingChart','chart');
+  showSkeleton('trendChart',   'chart');
+  renderMonthDependent();
+}
+// [P5-F19] Cross-fade helper — fades out all .fade-target elements,
+// waits for CSS transition, swaps data, then fades back in.
+function fadeMonthTargets(callback) {
+  const targets = document.querySelectorAll('.fade-target');
+  targets.forEach(el => el.classList.add('fading'));
+  setTimeout(() => {
+    callback();
+    targets.forEach(el => el.classList.remove('fading'));
+  }, 260); // slightly longer than the 0.25s CSS transition
+}
+
+function renderMonthDependent(){
+  fadeMonthTargets(() => {
+    populateMonthSelector();
+    renderHPBars();
+    renderChart();
+    renderLeaderboard();
+    renderMoMCard();
+    renderTrendChart();
+    renderInsights();
+    renderStory();
+    renderSimulator();
+    // [P6-F8] Hide any skeletons after minimum visible time
+    setTimeout(() => {
+      hideSkeleton('hpBars');
+      hideSkeleton('spendingChart');
+      hideSkeleton('trendChart');
+    }, 220);
+  });
+}
+
+function fireConfetti(count=50){
+  for(let i=0;i<count;i++){
+    const d=document.createElement('div'); d.className='confetti-piece';
+    d.style.left=Math.random()*100+'vw';
+    d.style.background=['#a855f7','#22c55e','#f59e0b','#06b6d4'][Math.floor(Math.random()*4)];
+    document.body.appendChild(d); setTimeout(()=>d.remove(),3100);
+  }
+}
+
+// Avatar picker — now works for any player id
+const AVATAR_OPTIONS=['⚔️','🛡️','🧙','🎯','🔥','⭐','💎','🐉','🦊','🎪','👑','🏆','⚡','🌟','💫','🎨','🎭','🦸','🧝','🏹','🐺','🦅','🌙','☀️','🎸'];
+let _avatarTargetPid = null;
+
+function openAvatarPickerForPlayer(pid) {
+  _avatarTargetPid = pid;
+  document.getElementById('avatarGrid').innerHTML = AVATAR_OPTIONS.map(e =>
+    `<button onclick="document.getElementById('customAvatarInput').value='${e}'" style="font-size:1.6rem;background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent-purple)'" onmouseout="this.style.borderColor='var(--border)'">${e}</button>`
+  ).join('');
+  document.getElementById('customAvatarInput').value = '';
+  document.getElementById('avatarPickerModal').classList.add('active');
+}
+// Keep old entry point for compat with settings modal etc.
+function openAvatarPicker(pid) { openAvatarPickerForPlayer(pid); }
+
+function closeAvatarPicker() { document.getElementById('avatarPickerModal').classList.remove('active'); }
+function confirmAvatarPick() {
+  const val = document.getElementById('customAvatarInput').value.trim();
+  if (!val) return;
+  if (_avatarTargetPid) {
+    const p = getPlayer(_avatarTargetPid);
+    if (p) { p.avatar = val; saveState(); renderPlayers(); }
+  }
+  closeAvatarPicker();
+}
+
+// =============================================================================
+// PLAYER MANAGER MODAL
+// Shows current players in an editable list. Changes are staged in a local
+// draft array and only committed when the user clicks "Save Changes".
+// =============================================================================
+let _pmDraft = []; // draft copy while modal is open
+
+function openPlayerManager() {
+  // Deep-clone current players into draft
+  _pmDraft = state.players.map(p => ({ ...p }));
+  renderPmRows();
+  document.getElementById('playerManagerModal').classList.add('active');
+}
+
+function closePlayerManager() {
+  document.getElementById('playerManagerModal').classList.remove('active');
+  _pmDraft = [];
+}
+
+function renderPmRows() {
+  const container = document.getElementById('pmRows');
+  container.innerHTML = _pmDraft.map((p, idx) => `
+    <div class="pm-row" id="pm-row-${p.id}">
+      <button class="pm-avatar-btn pav-${idx%5}" onclick="pmPickAvatar('${p.id}')" title="Change avatar">${escapeHtml(p.avatar)}</button>
+      <input class="pm-name-input" type="text" value="${escapeHtml(p.name)}"
+        onchange="pmUpdateName('${p.id}', this.value)"
+        placeholder="Player name">
+      <span style="font-size:0.72rem;color:var(--text-dim);font-family:var(--font-mono);text-align:center;">Lv.${p.level}</span>
+      <button class="pm-del-btn" onclick="pmRemovePlayer('${p.id}')"
+        ${_pmDraft.length <= 1 ? 'disabled title="Need at least 1 player"' : 'title="Remove player"'}>✕</button>
+    </div>`).join('');
+}
+
+function pmUpdateName(pid, val) {
+  const p = _pmDraft.find(p => p.id === pid);
+  if (p) p.name = val.trim() || p.name;
+}
+
+function pmPickAvatar(pid) {
+  // Re-use avatar picker, but target the draft
+  _avatarTargetPid = '__pm__' + pid;
+  document.getElementById('avatarGrid').innerHTML = AVATAR_OPTIONS.map(e =>
+    `<button onclick="document.getElementById('customAvatarInput').value='${e}'" style="font-size:1.6rem;background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;" onmouseover="this.style.borderColor='var(--accent-purple)'" onmouseout="this.style.borderColor='var(--border)'">${e}</button>`
+  ).join('');
+  document.getElementById('customAvatarInput').value = '';
+  // Override confirmAvatarPick for draft context
+  document.getElementById('avatarPickerModal').classList.add('active');
+}
+
+// Override confirmAvatarPick to handle draft context
+const _origConfirmAvatarPick = window.confirmAvatarPick;
+function confirmAvatarPick() {
+  const val = document.getElementById('customAvatarInput').value.trim();
+  if (!val) { closeAvatarPicker(); return; }
+
+  if (_avatarTargetPid && _avatarTargetPid.startsWith('__pm__')) {
+    const pid = _avatarTargetPid.replace('__pm__','');
+    const p   = _pmDraft.find(p => p.id === pid);
+    if (p) { p.avatar = val; renderPmRows(); }
+  } else if (_avatarTargetPid) {
+    const p = getPlayer(_avatarTargetPid);
+    if (p) { p.avatar = val; saveState(); renderPlayers(); }
+  }
+  closeAvatarPicker();
+}
+
+function pmRemovePlayer(pid) {
+  if (_pmDraft.length <= 1) { showToast('Need at least 1 player.', 'error'); return; }
+  _pmDraft = _pmDraft.filter(p => p.id !== pid);
+  renderPmRows();
+}
+
+function pmAddPlayer() {
+  const newId   = 'p' + Date.now();
+  const avatars = ['🎯','🌟','🎪','🏹','🐺','🦅'];
+  const avatar  = avatars[_pmDraft.length % avatars.length];
+  _pmDraft.push({ id: newId, name: 'Player ' + (_pmDraft.length + 1), avatar, xp: 0, level: 1, txns: 0 });
+  renderPmRows();
+}
+
+function savePlayerManager() {
+  // Read current name inputs before saving
+  _pmDraft.forEach(p => {
+    const inp = document.querySelector(`#pm-row-${p.id} .pm-name-input`);
+    if (inp && inp.value.trim()) p.name = inp.value.trim();
+  });
+
+  pushHistory();
+  // Merge: keep XP/level/txns for existing players, init 0 for new ones
+  state.players = _pmDraft.map(draft => {
+    const existing = state.players.find(p => p.id === draft.id);
+    return existing
+      ? { ...existing, name: draft.name, avatar: draft.avatar }
+      : { ...draft };
+  });
+
+  saveState();
+  renderAll();
+  closePlayerManager();
+  showToast(`Party updated — ${state.players.length} player${state.players.length!==1?'s':''}!`, 'success');
+}
+
+function editPlayerName(pid){
+  const p = getPlayer(pid); if(!p) return;
+  const name=prompt('Enter new name:',p.name);
+  if(name&&name.trim()){ p.name=name.trim(); saveState(); renderPlayers(); }
+}
+
+function openSettingsModal(){
+  document.getElementById('sXpPerLog').value       = state.settings.xpPerLog;
+  document.getElementById('sLevelUpBase').value    = state.settings.levelUpBase;
+  document.getElementById('sStreakCap').value      = state.settings.streakMultiplierCap;
+  document.getElementById('sSynergyXp').value      = state.settings.synergyXpPerLog;
+  document.getElementById('sCurrencySymbol').value = state.settings.currencySymbol;
+  renderQlEditor();
+  // Default to Formulas tab
+  document.querySelectorAll('[id^=settingsTab-]').forEach(el=>el.style.display='none');
+  document.getElementById('settingsTab-formulas').style.display='block';
+  document.querySelectorAll('.settings-tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.settings-tab-btn')?.classList.add('active');
+  document.getElementById('settingsModal').classList.add('active');
+}
+function closeSettingsModal(){ document.getElementById('settingsModal').classList.remove('active'); }
+
+function saveSettings(){
+  state.settings.xpPerLog            = parseFloat(document.getElementById('sXpPerLog').value)||10;
+  state.settings.levelUpBase         = parseFloat(document.getElementById('sLevelUpBase').value)||100;
+  state.settings.streakMultiplierCap = parseFloat(document.getElementById('sStreakCap').value)||3;
+  state.settings.synergyXpPerLog     = parseFloat(document.getElementById('sSynergyXp').value)||5;
+  state.settings.currencySymbol      = document.getElementById('sCurrencySymbol').value.trim()||'₨';
+  if(!Array.isArray(state.settings.quickLogs)) state.settings.quickLogs = DEFAULT_QUICK_LOGS;
+  state.settings.quickLogs = state.settings.quickLogs.filter(q=>q.label&&q.cat);
+  saveState(); renderAll(); closeSettingsModal();
+  showToast('Settings saved','success');
+}
+function switchSettingsTab(tab,btn){
+  document.querySelectorAll('[id^=settingsTab-]').forEach(el=>el.style.display='none');
+  document.getElementById('settingsTab-'+tab).style.display='block';
+  document.querySelectorAll('.settings-tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  // [P2-F12] Re-render editor when Quick Logs tab is opened
+  if(tab==='quicklogs') renderQlEditor();
+}
+
+// [P2-F12] setupQuickLogs — reads from state.settings.quickLogs (customisable)
+function setupQuickLogs(){
+  const container=document.getElementById('quickLogContainer'); if(!container) return;
+  const ql = state.settings.quickLogs || DEFAULT_QUICK_LOGS;
+  container.innerHTML =
+    ql.map(q =>
+      `<button class="quick-log-btn" onclick="quickLog('${q.cat}',${q.amount},'${escapeHtml(q.label)}')">${q.icon} ${q.label} ${formatCurrency(q.amount)}</button>`
+    ).join('')
+    + `<button class="ql-manage-btn" onclick="openSettingsModal();switchSettingsTab('quicklogs',document.querySelector('[onclick*=quicklogs]'))" title="Customise quick log shortcuts">✏️ Edit</button>`;
+}
+function quickLog(cat,amount,desc){
+  document.getElementById('txnCategory').value = cat;
+  document.getElementById('txnAmount').value   = amount;
+  document.getElementById('txnDesc').value     = desc;
+  document.getElementById('txnDate').value     = new Date().toISOString().slice(0,10);
+  submitTransaction();
+}
+
+function setupGoalDragDrop(){
+  const goals=document.querySelectorAll('.quest-goal');
+  let dragSrc=null;
+  goals.forEach(el=>{
+    el.draggable=true;
+    el.addEventListener('dragstart',e=>{ dragSrc=el; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+    el.addEventListener('dragend',  ()=>{ el.classList.remove('dragging'); document.querySelectorAll('.quest-goal').forEach(g=>g.classList.remove('drag-over')); });
+    el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave',()=>el.classList.remove('drag-over'));
+    el.addEventListener('drop',     e=>{ e.preventDefault(); if(dragSrc===el) return;
+      const srcId=dragSrc.dataset.id, dstId=el.dataset.id;
+      const si=state.goals.findIndex(g=>g.id===srcId), di=state.goals.findIndex(g=>g.id===dstId);
+      if(si>-1&&di>-1){ const [moved]=state.goals.splice(si,1); state.goals.splice(di,0,moved); saveState(); renderGoals(); }
+    });
+  });
+}
+
+// =============================================================================
+// [P2-F11]  VOICE LOGGING
+// Uses Web Speech API (webkitSpeechRecognition / SpeechRecognition).
+// Parses spoken phrases like "coffee 250" or "groceries 1500 at metro".
+// Falls back gracefully when the API is unavailable (hides mic button).
+// =============================================================================
+let _voiceRecognition = null;
+let _voiceListening   = false;
+
+// Category keyword map — longest / most specific matches first
+const VOICE_KEYWORDS = [
+  { cats:['housing'],   words:['rent','electric','electricity','water','gas','utilities','utility','internet','wifi'] },
+  { cats:['groceries'], words:['groceries','grocery','supermarket','vegetables','veggies','fruits','karyana','metro','imtiaz'] },
+  { cats:['dining'],    words:['lunch','dinner','breakfast','restaurant','biryani','pizza','burger','dine','eat out','food'] },
+  { cats:['coffee'],    words:['coffee','café','cafe','latte','cappuccino','espresso','tea','chai'] },
+  { cats:['crypto'],    words:['crypto','bitcoin','btc','invest','investment','binance'] },
+  { cats:['tech'],      words:['laptop','phone','computer','gadget','accessory','cable','charger','tech'] },
+  { cats:['transport'], words:['taxi','uber','careem','bus','rickshaw','petrol','fuel','ride','travel'] },
+  { cats:['medical'],   words:['medicine','doctor','pharmacy','health','clinic','hospital','checkup'] },
+];
+
+function initVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    // Hide mic button if Speech API unavailable (e.g. Firefox without flag)
+    const btn = document.getElementById('voiceBtn');
+    if (btn) { btn.style.display = 'none'; }
+    return;
+  }
+  _voiceRecognition = new SR();
+  _voiceRecognition.lang = 'en-US';
+  _voiceRecognition.interimResults = true;
+  _voiceRecognition.maxAlternatives = 1;
+  _voiceRecognition.continuous = false;
+
+  _voiceRecognition.onstart = () => {
+    _voiceListening = true;
+    document.getElementById('voiceBtn').classList.add('listening');
+    document.getElementById('voiceStatusRow').style.display = 'flex';
+    document.getElementById('voiceStatusText').textContent = 'Listening… speak now';
+  };
+
+  _voiceRecognition.onend = () => {
+    _voiceListening = false;
+    document.getElementById('voiceBtn').classList.remove('listening');
+    document.getElementById('voiceStatusRow').style.display = 'none';
+  };
+
+  _voiceRecognition.onerror = (e) => {
+    _voiceListening = false;
+    document.getElementById('voiceBtn').classList.remove('listening');
+    document.getElementById('voiceStatusRow').style.display = 'none';
+    const msgs = { 'not-allowed':'Microphone access denied.', 'no-speech':'No speech detected. Try again.', 'network':'Network error.' };
+    showToast(msgs[e.error] || 'Voice error: '+e.error, 'error');
+  };
+
+  _voiceRecognition.onresult = (event) => {
+    let transcript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    // Show interim result in status
+    document.getElementById('voiceStatusText').textContent = '🎙️ ' + transcript;
+
+    // Only act on final result
+    if (event.results[event.results.length-1].isFinal) {
+      parseVoiceInput(transcript.toLowerCase().trim());
+    }
+  };
+}
+
+function toggleVoice() {
+  if (!_voiceRecognition) initVoice();
+  if (!_voiceRecognition) { showToast('Voice input not supported in this browser.','error'); return; }
+
+  if (_voiceListening) {
+    _voiceRecognition.stop();
+  } else {
+    try { _voiceRecognition.start(); }
+    catch(e) { showToast('Could not start voice input.','error'); }
+  }
+}
+
+function parseVoiceInput(text) {
+  /* ---- Extract amount: first standalone number (integer or decimal) ---- */
+  const numMatch = text.match(/\b(\d+(?:[.,]\d{1,2})?)\b/);
+  const amount = numMatch ? parseFloat(numMatch[1].replace(',','.')) : null;
+
+  /* ---- Match category by keyword ---- */
+  let detectedCat = 'wildcard';
+  outer: for (const entry of VOICE_KEYWORDS) {
+    for (const word of entry.words) {
+      if (text.includes(word)) { detectedCat = entry.cats[0]; break outer; }
+    }
+  }
+
+  /* ---- Build description: strip number, keep rest ---- */
+  let desc = text;
+  if (numMatch) desc = desc.replace(numMatch[0], '').trim();
+  // Remove filler words
+  desc = desc.replace(/\b(at|from|for|the|a|an|of)\b/g,'').replace(/\s{2,}/g,' ').trim();
+  // Capitalise first letter
+  if (desc) desc = desc.charAt(0).toUpperCase() + desc.slice(1);
+  if (!desc) desc = CATEGORIES[detectedCat]?.name || 'Expense';
+
+  /* ---- Fill the form ---- */
+  document.getElementById('txnDesc').value     = desc;
+  document.getElementById('txnCategory').value = detectedCat;
+  if (amount !== null) document.getElementById('txnAmount').value = amount;
+  document.getElementById('txnDate').value = new Date().toISOString().slice(0,10);
+
+  showToast(`🎙️ Parsed: ${desc} — ${amount ? formatCurrency(amount) : '?'} (${CATEGORIES[detectedCat].name})`,'success');
+  // Focus amount if missing so user can type it quickly
+  if (amount === null) document.getElementById('txnAmount').focus();
+}
+
+// =============================================================================
+// [P2-F14]  PREDICTIVE PRE-FILL
+// Builds hint pills shown below the description field.
+// Logic:
+//   • Time-of-day category suggestion (morning→coffee, noon→dining, etc.)
+//   • Most-used category in the last 7 days
+//   • Average amount for that category over the last 14 days
+// Tapping a pill pre-fills category + amount instantly.
+// =============================================================================
+function renderPrefillHints() {
+  const hintRow = document.getElementById('prefillHints');
+  if (!hintRow) return;
+
+  const now = new Date();
+  const hour = now.getHours();
+  const hints = [];
+
+  /* ---- Time-of-day suggestion ---- */
+  let todCat = null;
+  if (hour >= 5  && hour < 11) todCat = 'coffee';
+  else if (hour >= 11 && hour < 15) todCat = 'dining';
+  else if (hour >= 15 && hour < 18) todCat = 'coffee';
+  else if (hour >= 18 && hour < 22) todCat = 'dining';
+
+  if (todCat) {
+    const avg = avgAmountForCat(todCat, 14);
+    hints.push({ cat: todCat, label: `${CATEGORIES[todCat].icon} ${CATEGORIES[todCat].name}`, amount: avg, reason: 'now' });
+  }
+
+  /* ---- Most-used category last 7 days ---- */
+  const sevenDaysAgo = new Date(Date.now() - 7*86400000);
+  const recentTxns   = state.transactions.filter(t => new Date(t.date) >= sevenDaysAgo);
+  if (recentTxns.length) {
+    const freq = {};
+    recentTxns.forEach(t => { freq[t.category] = (freq[t.category]||0) + 1; });
+    const topCat = Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0];
+    // Don't duplicate time-of-day hint
+    if (topCat !== todCat) {
+      const avg = avgAmountForCat(topCat, 7);
+      hints.push({ cat: topCat, label: `${CATEGORIES[topCat].icon} ${CATEGORIES[topCat].name}`, amount: avg, reason: 'frequent' });
+    }
+  }
+
+  /* ---- Render pills ---- */
+  if (!hints.length) { hintRow.innerHTML = ''; return; }
+
+  hintRow.innerHTML = hints.map(h => {
+    const amtText = h.amount > 0 ? ` · ~${formatCurrency(h.amount)}` : '';
+    const tip = h.reason === 'now' ? 'Based on time of day' : 'Most frequent this week';
+    return `<span class="prefill-hint" onclick="applyPrefillHint('${h.cat}',${h.amount})" title="${tip}">
+      ${h.label}${amtText} ✦
+    </span>`;
+  }).join('');
+}
+
+function avgAmountForCat(cat, days) {
+  const cutoff = new Date(Date.now() - days*86400000);
+  const relevant = state.transactions.filter(t => t.category === cat && new Date(t.date) >= cutoff);
+  if (!relevant.length) return 0;
+  return Math.round(relevant.reduce((s,t) => s+t.amount, 0) / relevant.length);
+}
+
+function applyPrefillHint(cat, amount) {
+  document.getElementById('txnCategory').value = cat;
+  if (amount > 0) document.getElementById('txnAmount').value = amount;
+  document.getElementById('txnDesc').value = CATEGORIES[cat]?.name || '';
+  document.getElementById('txnDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('txnDesc').focus();
+  document.getElementById('txnDesc').select();
+}
+
+// =============================================================================
+// [P2-F12]  CUSTOMISABLE QUICK LOGS
+// state.settings.quickLogs is an array of {icon, label, amount, cat}.
+// setupQuickLogs() reads from it (replaces the hardcoded version in P1).
+// The Settings → Quick Logs tab lets the user add / edit / delete shortcuts.
+// =============================================================================
+
+/** Render the Quick Log editor rows inside the Settings modal */
+function renderQlEditor() {
+  const rows = document.getElementById('qlEditorRows');
+  if (!rows) return;
+  const ql = state.settings.quickLogs || [];
+  rows.innerHTML = ql.map((item, idx) => `
+    <div class="ql-editor-row" id="ql-row-${idx}">
+      <input type="text"   value="${escapeHtml(item.icon)}"  maxlength="4"   placeholder="☕"  data-qi="${idx}" data-field="icon"   oninput="qlUpdateField(${idx},'icon',this.value)">
+      <input type="text"   value="${escapeHtml(item.label)}" placeholder="Coffee"            data-qi="${idx}" data-field="label"  oninput="qlUpdateField(${idx},'label',this.value)">
+      <input type="number" value="${item.amount}"            placeholder="250"               data-qi="${idx}" data-field="amount" oninput="qlUpdateField(${idx},'amount',parseFloat(this.value)||0)">
+      <select data-qi="${idx}" data-field="cat" onchange="qlUpdateField(${idx},'cat',this.value)" style="background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text-main);font-size:0.82rem;">
+        ${Object.entries(CATEGORIES).map(([k,v])=>`<option value="${k}" ${k===item.cat?'selected':''}>${v.icon} ${v.name}</option>`).join('')}
+      </select>
+      <button class="ql-del-btn" onclick="qlDeleteRow(${idx})" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+function qlUpdateField(idx, field, value) {
+  if (!state.settings.quickLogs[idx]) return;
+  state.settings.quickLogs[idx][field] = value;
+  // Don't save until user clicks Settings > Save
+}
+
+function qlDeleteRow(idx) {
+  state.settings.quickLogs.splice(idx, 1);
+  renderQlEditor();
+}
+
+function qlAddRow() {
+  if (!state.settings.quickLogs) state.settings.quickLogs = [];
+  state.settings.quickLogs.push({ icon:'🎲', label:'Custom', amount:100, cat:'wildcard' });
+  renderQlEditor();
+}
+
+// =============================================================================
+// [P3-F9]  UNLOCKABLE TITLES
+// Each title has: id, label (display text), icon, and a condition function.
+// Conditions are checked in renderPlayers() and results stored in
+// Titles are resolved live from state.players array (not stored on player objects).
+// =============================================================================
+const PLAYER_TITLES = [
+  {
+    id: 'budget_sage',
+    label: '✦ Budget Sage',
+    condition: (pid) => Object.keys(state.budgets).length >= 1
+  },
+  {
+    id: 'coffee_connoisseur',
+    label: '☕ Coffee Connoisseur',
+    condition: (pid) => state.transactions.filter(t => t.player === pid && t.category === 'coffee').length >= 10
+  },
+  {
+    id: 'streak_keeper',
+    label: '🔥 Streak Keeper',
+    condition: (pid) => state.streak.count >= 7
+  },
+  {
+    id: 'goal_champion',
+    label: '🏆 Goal Champion',
+    condition: (pid) => state.goals.some(g => g.current >= g.target)
+  },
+  {
+    id: 'synergy_master',
+    label: '🔗 Synergy Master',
+    condition: (pid) => state.synergy.level >= 3
+  },
+  {
+    id: 'chronicler',
+    label: '📜 Chronicler',
+    condition: (pid) => state.transactions.filter(t => t.player === pid).length >= 50
+  },
+  {
+    id: 'budget_wizard',
+    label: '🧙 Budget Wizard',
+    condition: (pid) => state.transactions.filter(t => t.player === pid).length >= 20
+  }
+];
+
+function resolvePlayerTitle(pid) {
+  let best = '';
+  PLAYER_TITLES.forEach(t => {
+    try { if (t.condition(pid)) best = t.label; } catch(e) {}
+  });
+  return best;
+}
+
+// =============================================================================
+// [P3-F18]  SPARKLINES
+// Draws a tiny inline SVG showing the last ≤6 contribution amounts for a goal.
+// Returns an SVG string, or '' if there are fewer than 2 data points.
+// =============================================================================
+function buildSparkline(goalId) {
+  const contribs = (state.goalContributions || [])
+    .filter(c => c.goalId === goalId)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(-6);
+
+  if (contribs.length < 2) return '';
+
+  const vals  = contribs.map(c => c.amount);
+  const max   = Math.max(...vals);
+  const min   = Math.min(...vals);
+  const range = max - min || 1;
+  const W = 58, H = 22, pad = 2;
+
+  const pts = vals.map((v, i) => {
+    const x = pad + (i / (vals.length - 1)) * (W - pad * 2);
+    const y = H - pad - ((v - min) / range) * (H - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  // Last dot
+  const [lx, ly] = pts.split(' ').pop().split(',');
+
+  return `<span class="sparkline-wrap" title="Contribution history">
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <polyline points="${pts}" fill="none" stroke="var(--accent-cyan)" stroke-width="1.5"
+        stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+      <circle cx="${lx}" cy="${ly}" r="2.5" fill="var(--accent-cyan)" opacity="0.9"/>
+    </svg>
+  </span>`;
+}
+
+// =============================================================================
+// [P3-F7]  MILESTONE BADGES  &  GOAL COMPLETION CELEBRATION
+// =============================================================================
+
+/** Renders the milestone pip + connecting lines row for a goal */
+function buildMilestoneRow(pct) {
+  const milestones = [
+    { at: 25,  icon: '⭐', label: '25%' },
+    { at: 50,  icon: '💎', label: '50%' },
+    { at: 75,  icon: '🏆', label: '75%' },
+    { at: 100, icon: '👑', label: '100%' }
+  ];
+
+  let html = '<div class="milestone-row">';
+  milestones.forEach((m, i) => {
+    const reached = pct >= m.at;
+    const full    = m.at === 100 && reached;
+    const cls     = reached ? (full ? 'milestone-pip reached full' : 'milestone-pip reached') : 'milestone-pip';
+    html += `<div class="${cls}" title="${m.label}">${reached ? m.icon : '·'}</div>`;
+    // Connecting line between pips (not after last)
+    if (i < milestones.length - 1) {
+      // How far along the segment between this milestone and next?
+      const segStart = m.at;
+      const segEnd   = milestones[i + 1].at;
+      const segPct   = Math.min(100, Math.max(0, ((pct - segStart) / (segEnd - segStart)) * 100));
+      html += `<div class="milestone-line"><div class="milestone-line-fill" style="width:${segPct}%"></div></div>`;
+    }
+  });
+  html += '</div>';
+  return html;
+}
+
+/** Floating "+Complete!" text anchored to the goal card */
+function fireGoalCompleteText(goalId) {
+  const el = document.querySelector(`.quest-goal[data-id="${goalId}"]`);
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const fx = document.createElement('div');
+  fx.className = 'floating-text';
+  fx.textContent = '🎉 Complete!';
+  fx.style.cssText = `left:${rect.left + rect.width/2 - 60}px;top:${rect.top + window.scrollY + 10}px;color:var(--accent-green);font-size:1.4rem;`;
+  document.body.appendChild(fx);
+  setTimeout(() => fx.remove(), 1300);
+}
+
+// =============================================================================
+// [P3-F12] LOADING STATE — ensure quickLogs exists when loading old saves
+// =============================================================================
+const DEFAULT_QUICK_LOGS = [
+  {icon:'☕', label:'Coffee',    amount:250,  cat:'coffee'},
+  {icon:'🍔', label:'Lunch',     amount:500,  cat:'dining'},
+  {icon:'🚕', label:'Taxi',      amount:300,  cat:'transport'},
+  {icon:'🛒', label:'Groceries', amount:2000, cat:'groceries'}
+];
+
+// =============================================================================
+// [P4-F1]  AI INSIGHTS  — rule-based spending analysis
+// Refreshes on every renderAll() and every month change.
+// Rules check: MoM category deltas, budget danger zones, streak bonuses,
+// savings rate, and coffee/dining specific tips.
+// =============================================================================
+function generateInsights() {
+  const insights = [];
+  const monthTxns = getTransactionsForMonth(currentViewMonth);
+  const prevKey   = shiftMonth(currentViewMonth, -1);
+  const prevTxns  = getTransactionsForMonth(prevKey);
+  const budgets   = getBudgetsForMonth(currentViewMonth);
+
+  // Helper: total spent in a category for a set of transactions
+  const catSpend = (txns, cat) => txns.filter(t => t.category === cat).reduce((s,t) => s+t.amount, 0);
+
+  // 1. Month-over-month category comparisons
+  if (prevTxns.length > 0) {
+    Object.keys(CATEGORIES).forEach(cat => {
+      const curr = catSpend(monthTxns, cat);
+      const prev = catSpend(prevTxns, cat);
+      if (prev > 0 && curr > 0) {
+        const pct = Math.round(((curr - prev) / prev) * 100);
+        if (pct >= 30) {
+          insights.push({ tag:'↑ UP', tagClass:'red', text:`${CATEGORIES[cat].icon} ${CATEGORIES[cat].name} is up ${pct}% vs last month (${formatCurrency(curr)} vs ${formatCurrency(prev)}). Consider trimming.` });
+        } else if (pct <= -20) {
+          insights.push({ tag:'↓ DOWN', tagClass:'green', text:`${CATEGORIES[cat].icon} ${CATEGORIES[cat].name} is down ${Math.abs(pct)}% vs last month — great discipline! You saved ${formatCurrency(prev - curr)}.` });
+        }
+      }
+    });
+  }
+
+  // 2. Budget danger zones (>80% used)
+  Object.keys(CATEGORIES).forEach(cat => {
+    const used   = catSpend(monthTxns, cat);
+    const budget = budgets[cat] || CATEGORIES[cat].budget;
+    const usedPct = budget > 0 ? (used / budget) * 100 : 0;
+    if (usedPct >= 80 && usedPct < 100) {
+      insights.push({ tag:'⚠ WARN', tagClass:'amber', text:`${CATEGORIES[cat].icon} ${CATEGORIES[cat].name} at ${usedPct.toFixed(0)}% of budget. Only ${formatCurrency(budget - used)} remaining.` });
+    } else if (usedPct >= 100) {
+      insights.push({ tag:'❌ OVER', tagClass:'red', text:`${CATEGORIES[cat].icon} ${CATEGORIES[cat].name} is over budget by ${formatCurrency(used - budget)}!` });
+    }
+  });
+
+  // 3. Savings rate
+  const totalBudget = Object.keys(CATEGORIES).reduce((s,k) => s + (budgets[k] || CATEGORIES[k].budget), 0);
+  const totalSpent  = monthTxns.reduce((s,t) => s + t.amount, 0);
+  if (totalSpent > 0 && totalBudget > 0) {
+    const saved    = Math.max(0, totalBudget - totalSpent);
+    const savePct  = Math.round((saved / totalBudget) * 100);
+    if (savePct >= 20) {
+      insights.push({ tag:'💰 SAVE', tagClass:'green', text:`You're saving ~${savePct}% of your budget this month (${formatCurrency(saved)}). On track!` });
+    } else if (totalSpent > totalBudget * 0.95) {
+      insights.push({ tag:'📉 TIGHT', tagClass:'amber', text:`Spending ${formatCurrency(totalSpent)} out of a ${formatCurrency(totalBudget)} total budget. Consider reducing discretionary spend.` });
+    }
+  }
+
+  // 4. Streak bonus tip
+  if (state.streak.count >= 5) {
+    insights.push({ tag:'🔥 STREAK', tagClass:'cyan', text:`${state.streak.count}-day logging streak active! Your ${state.streak.multiplier.toFixed(1)}× XP multiplier is earning you bonus XP.` });
+  }
+
+  // 5. Coffee-specific insight
+  const coffeeSpend = catSpend(monthTxns, 'coffee');
+  if (coffeeSpend > 0) {
+    const coffeeTxns = monthTxns.filter(t => t.category === 'coffee').length;
+    const avgCoffee  = coffeeSpend / coffeeTxns;
+    if (coffeeTxns >= 5) {
+      insights.push({ tag:'☕ COFFEE', tagClass:'amber', text:`${coffeeTxns} coffee purchases averaging ${formatCurrency(Math.round(avgCoffee))} each. Monthly total: ${formatCurrency(coffeeSpend)}.` });
+    }
+  }
+
+  // 6. Goal projection tip
+  const activeGoals = state.goals.filter(g => g.current < g.target);
+  if (activeGoals.length > 0) {
+    const totalSaved  = monthTxns.length > 0 ? Math.max(0, totalBudget - totalSpent) : 0;
+    const nearestGoal = activeGoals.sort((a,b) => (b.current/b.target) - (a.current/a.target))[0];
+    const remaining   = nearestGoal.target - nearestGoal.current;
+    if (totalSaved > 0 && remaining > 0) {
+      const months = Math.ceil(remaining / totalSaved);
+      insights.push({ tag:'🎯 GOAL', tagClass:'cyan', text:`At this month's savings rate, "${nearestGoal.name}" could complete in ~${months} month${months>1?'s':''}.` });
+    }
+  }
+
+  // 7. No data fallback
+  if (insights.length === 0) {
+    insights.push({ tag:'TIP', tagClass:'', text:'Log transactions consistently to unlock personalised spending insights here.' });
+  }
+
+  return insights.slice(0, 5); // cap at 5 insights
+}
+
+function renderInsights() {
+  const panel = document.getElementById('insightsPanel');
+  if (!panel) return;
+  const insights = generateInsights();
+  panel.innerHTML = insights.map(i =>
+    `<div class="insight-row">
+       <span class="insight-tag ${i.tagClass}">${i.tag}</span>
+       <span>${i.text}</span>
+     </div>`
+  ).join('');
+}
+
+// =============================================================================
+// [P4-F4]  NARRATIVE / STORY PANEL
+// Monthly theme is deterministic from year+month seed.
+// Year-end (December) adds a Boss Battle section.
+// =============================================================================
+const STORY_THEMES = [
+  { title: 'The Month of the Frugal Fox',    emoji: '🦊', tagline: 'Cunning economy and wise choices define this chapter.' },
+  { title: 'The Coffee Dragon Rises',         emoji: '🐉', tagline: 'Beware the allure of artisan brews — the dragon stirs.' },
+  { title: 'The Synergy Moon',                emoji: '🌙', tagline: 'Two adventurers united; their shared power grows.' },
+  { title: 'The Great Budget Expedition',     emoji: '🗺️', tagline: 'Chart the terrain of your spending, and conquer it.' },
+  { title: 'The Merchant\'s Gambit',          emoji: '⚖️', tagline: 'Every rupee is a move — play wisely.' },
+  { title: 'The Harvest of Savings',          emoji: '🌾', tagline: 'What you sow in discipline, you reap in wealth.' },
+  { title: 'The Crystal Cave of Budgets',     emoji: '💎', tagline: 'Hidden riches await those who hold the line.' },
+  { title: 'The Tower of Transactions',       emoji: '🏰', tagline: 'Each log adds a stone to your financial fortress.' },
+  { title: 'The Shadow of Overspending',      emoji: '🌑', tagline: 'A dark force lurks — vigilance is your shield.' },
+  { title: 'The Phoenix of Financial Rebirth',emoji: '🔥', tagline: 'From the ashes of debt, savings rise anew.' },
+  { title: 'The Wanderer\'s Rest',            emoji: '🏕️', tagline: 'Pause, reflect, and plan the road ahead.' },
+  { title: 'The Final Countdown',             emoji: '⏳', tagline: 'The year draws to a close. What legacy will you leave?' },
+];
+
+let _storyExpanded = false;
+
+function renderStory() {
+  const bannerEl = document.getElementById('storyBanner');
+  const bodyEl   = document.getElementById('storyBody');
+  if (!bannerEl || !bodyEl) return;
+
+  const [y, m]    = currentViewMonth.split('-').map(Number);
+  const themeIdx  = (y * 12 + m) % STORY_THEMES.length;
+  const theme     = STORY_THEMES[themeIdx];
+
+  const monthTxns  = getTransactionsForMonth(currentViewMonth);
+  const totalSpent = monthTxns.reduce((s,t) => s + t.amount, 0);
+  const topCat     = (() => {
+    const freq = {};
+    monthTxns.forEach(t => { freq[t.category] = (freq[t.category]||0) + t.amount; });
+    const top = Object.entries(freq).sort((a,b)=>b[1]-a[1])[0];
+    return top ? CATEGORIES[top[0]] : null;
+  })();
+
+  bannerEl.innerHTML = `<div class="story-theme-banner">${theme.emoji} ${theme.title}</div>`;
+
+  let narrative = `<em>"${theme.tagline}"</em><br><br>`;
+  narrative += `This month, the party logged <strong>${monthTxns.length}</strong> quests`;
+  if (totalSpent > 0) narrative += `, venturing ${formatCurrency(totalSpent)} across the realm`;
+  if (topCat) narrative += `. Their greatest challenge was <strong>${topCat.icon} ${topCat.name}</strong>`;
+  narrative += '.';
+
+  if (state.streak.count >= 3) {
+    narrative += `<br><br>The <strong>🔥 ${state.streak.count}-day streak</strong> burns bright — the party's discipline is the stuff of legend.`;
+  }
+
+  // Year-end Boss Battle (December only)
+  if (m === 12) {
+    const annualTxns  = state.transactions.filter(t => t.date.startsWith(String(y)));
+    const annualSpent = annualTxns.reduce((s,t) => s + t.amount, 0);
+    const annualXP    = annualTxns.length * (state.settings.xpPerLog || 10);
+    const totalSaved  = state.goals.reduce((s,g) => s + g.current, 0);
+    narrative += `<div class="story-boss-battle">
+      <strong>🐉 YEAR-END BOSS BATTLE — ${y}</strong><br>
+      The Debt Dragon has been confronted! In ${y}, the party logged ${annualTxns.length} quests,
+      spent ${formatCurrency(annualSpent)}, earned ${annualXP} XP, and saved
+      ${formatCurrency(totalSaved)} toward their goals.<br><br>
+      <strong>${totalSaved > 0 ? '🏆 Victory! The Debt Dragon retreats!' : '⚔️ The battle continues into next year…'}</strong>
+      ${totalSaved > 0 ? ' +100 XP bonus awarded to the party!' : ''}
+    </div>`;
+  }
+
+  bodyEl.innerHTML = narrative;
+  document.getElementById('storyToggleBtn').textContent = _storyExpanded ? '▲ collapse' : '▼ expand';
+  bodyEl.style.display = _storyExpanded ? 'block' : 'none';
+}
+
+function toggleStory() {
+  _storyExpanded = !_storyExpanded;
+  const bodyEl = document.getElementById('storyBody');
+  const btnEl  = document.getElementById('storyToggleBtn');
+  if (bodyEl) bodyEl.style.display = _storyExpanded ? 'block' : 'none';
+  if (btnEl)  btnEl.textContent = _storyExpanded ? '▲ collapse' : '▼ expand';
+}
+
+// =============================================================================
+// [P4-F13]  GLOBAL WHAT-IF SIMULATOR
+// Two sliders: reduce dining% and reduce coffee%.
+// Output: monthly savings gained + months earlier each active goal completes.
+// =============================================================================
+let _simDiningPct = 0;
+let _simCoffeePct = 0;
+
+function renderSimulator() {
+  const el = document.getElementById('simulatorPanel');
+  if (!el) return;
+
+  const monthTxns  = getTransactionsForMonth(currentViewMonth);
+  const diningSpend = monthTxns.filter(t=>t.category==='dining').reduce((s,t)=>s+t.amount,0);
+  const coffeeSpend = monthTxns.filter(t=>t.category==='coffee').reduce((s,t)=>s+t.amount,0);
+
+  // Active goals for the dropdown
+  const activeGoals = state.goals.filter(g => g.current < g.target);
+  const goalOptions = activeGoals.length
+    ? activeGoals.map((g,i) => `<option value="${i}">${escapeHtml(g.name)}</option>`).join('')
+    : '<option value="">No active goals</option>';
+
+  el.innerHTML = `
+    <div class="simulator-block">
+      <h4>🍽️ Reduce Dining Out</h4>
+      <div class="sim-row">
+        <div class="sim-label">Reduction: <span id="simDiningVal">${_simDiningPct}%</span></div>
+        <input type="range" class="sim-slider" id="simDiningSlider"
+          min="0" max="100" step="5" value="${_simDiningPct}"
+          oninput="onSimChange()">
+      </div>
+      <h4 style="margin-top:10px;">☕ Reduce Coffee</h4>
+      <div class="sim-row">
+        <div class="sim-label">Reduction: <span id="simCoffeeVal">${_simCoffeePct}%</span></div>
+        <input type="range" class="sim-slider" id="simCoffeeSlider"
+          min="0" max="100" step="5" value="${_simCoffeePct}"
+          oninput="onSimChange()">
+      </div>
+      <div style="margin-top:10px;font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;">Apply savings toward goal:</div>
+      <select id="simGoalSelect" onchange="onSimChange()"
+        style="background:var(--bg-deep);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-main);font-size:0.85rem;width:100%;">
+        ${goalOptions}
+      </select>
+      <div class="sim-result" id="simResult">
+        Adjust the sliders to see your savings projection.
+      </div>
+    </div>`;
+
+  onSimChange(); // render initial result
+}
+
+function onSimChange() {
+  const diningSlider = document.getElementById('simDiningSlider');
+  const coffeeSlider = document.getElementById('simCoffeeSlider');
+  const goalSelect   = document.getElementById('simGoalSelect');
+  const resultEl     = document.getElementById('simResult');
+  if (!diningSlider || !coffeeSlider || !resultEl) return;
+
+  _simDiningPct = parseInt(diningSlider.value);
+  _simCoffeePct = parseInt(coffeeSlider.value);
+
+  document.getElementById('simDiningVal').textContent = `${_simDiningPct}%`;
+  document.getElementById('simCoffeeVal').textContent = `${_simCoffeePct}%`;
+
+  const monthTxns   = getTransactionsForMonth(currentViewMonth);
+  const diningSpend = monthTxns.filter(t=>t.category==='dining').reduce((s,t)=>s+t.amount,0);
+  const coffeeSpend = monthTxns.filter(t=>t.category==='coffee').reduce((s,t)=>s+t.amount,0);
+
+  const diningReduction = diningSpend * (_simDiningPct / 100);
+  const coffeeReduction = coffeeSpend * (_simCoffeePct / 100);
+  const totalReduction  = diningReduction + coffeeReduction;
+
+  if (totalReduction === 0) {
+    resultEl.innerHTML = 'Adjust the sliders to see your savings projection.';
+    return;
+  }
+
+  let html = `<strong>+${formatCurrency(Math.round(totalReduction))}/month</strong> in additional savings`;
+
+  // Goal projection
+  const activeGoals = state.goals.filter(g => g.current < g.target);
+  if (activeGoals.length > 0 && goalSelect) {
+    const idx  = parseInt(goalSelect.value) || 0;
+    const goal = activeGoals[idx];
+    if (goal) {
+      const remaining = goal.target - goal.current;
+      // Existing monthly contribution rate from contributions
+      const contribs   = (state.goalContributions||[]).filter(c=>c.goalId===goal.id);
+      const totalC     = contribs.reduce((s,c)=>s+c.amount,0);
+      const months     = Math.max(1, Math.ceil((Date.now()-new Date(goal.createdDate))/(1000*3600*24*30.44)));
+      const existingRate = totalC / months;
+      const newRate      = existingRate + totalReduction;
+
+      if (newRate > 0) {
+        const monthsNow    = existingRate > 0 ? Math.ceil(remaining / existingRate) : null;
+        const monthsNew    = Math.ceil(remaining / newRate);
+        const monthsFaster = monthsNow !== null ? monthsNow - monthsNew : null;
+
+        html += `.<br><br>For <strong>"${escapeHtml(goal.name)}"</strong>: `;
+        if (monthsNow !== null && monthsFaster > 0) {
+          html += `goal completes in <strong>${monthsNew} month${monthsNew!==1?'s':''}</strong> instead of ${monthsNow} — that's <strong>${monthsFaster} month${monthsFaster!==1?'s':''} earlier</strong>! 🎯`;
+        } else {
+          html += `at this rate, goal completes in <strong>${monthsNew} month${monthsNew!==1?'s':''}</strong>. 🎯`;
+        }
+      }
+    }
+  }
+
+  resultEl.innerHTML = html;
+}
+
+// =============================================================================
+// [P7-F5]  PWA — MANIFEST (inline data URI)
+// Injected at runtime so this stays a single self-contained HTML file.
+// =============================================================================
+function injectPWAManifest() {
+  const manifest = {
+    name:             'Quest Ledger — Co-Op Budget RPG',
+    short_name:       'Quest Ledger',
+    description:      'Co-op household budget tracker with RPG mechanics and cloud sync.',
+    start_url:        '.',
+    display:          'standalone',
+    orientation:      'portrait-primary',
+    theme_color:      '#0a0a12',
+    background_color: '#0a0a12',
+    categories:       ['finance', 'productivity', 'lifestyle'],
+    icons: [
+      {
+        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230a0a12'/%3E%3Ctext x='96' y='136' text-anchor='middle' font-size='108'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E",
+        sizes: '192x192',
+        type:  'image/svg+xml',
+        purpose: 'any maskable'
+      },
+      {
+        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230a0a12'/%3E%3Ctext x='256' y='360' text-anchor='middle' font-size='290'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E",
+        sizes: '512x512',
+        type:  'image/svg+xml',
+        purpose: 'any maskable'
+      }
+    ]
+  };
+
+  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.getElementById('pwaManifest');
+  if (link) link.href = url;
+}
+
+// =============================================================================
+// [P7-F5]  PWA — SERVICE WORKER (Blob URL approach)
+// Because this is a single HTML file (no HTTPS path to a .js file),
+// we register a SW from a Blob URL. This works in Chrome, Edge, Firefox,
+// and modern Safari. The SW caches this page's URL on install so it loads
+// even when offline. Firebase's own IndexedDB persistence handles data sync.
+// =============================================================================
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) {
+    console.info('Service Worker not supported in this browser.');
+    return;
+  }
+
+  // The SW script — defined as a template string and turned into a Blob
+  const CACHE_NAME = 'quest-ledger-v1';
+
+  const swScript = `
+    const CACHE_NAME = '${CACHE_NAME}';
+    const APP_URL    = self.location.href.replace(/\\/[^/]*$/, '/');
+
+    // On install: cache the app shell (the single HTML page)
+    self.addEventListener('install', event => {
+      event.waitUntil(
+        caches.open(CACHE_NAME).then(cache => {
+          // Cache the referring page (the single HTML file)
+          return cache.add(new Request(APP_URL, { cache: 'reload' }));
+        }).catch(() => {
+          // If caching fails (e.g. no network at all) that's fine —
+          // Firebase persistence still handles offline data.
+        })
+      );
+      self.skipWaiting();
+    });
+
+    // On activate: remove old caches
+    self.addEventListener('activate', event => {
+      event.waitUntil(
+        caches.keys().then(keys =>
+          Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+        )
+      );
+      self.clients.claim();
+    });
+
+    // On fetch: network-first for Firebase/CDN, cache-first for app shell
+    self.addEventListener('fetch', event => {
+      const url = event.request.url;
+
+      // Always go network-first for Firebase, Chart.js CDN, and APIs
+      const networkFirst = [
+        'firestore.googleapis.com',
+        'firebase',
+        'googleapis.com',
+        'cdn.jsdelivr.net',
+        'gstatic.com'
+      ];
+      if (networkFirst.some(h => url.includes(h))) {
+        // Pass through — let Firebase handle its own caching
+        return;
+      }
+
+      // Cache-first for the app shell
+      event.respondWith(
+        caches.match(event.request).then(cached => {
+          if (cached) return cached;
+          return fetch(event.request).then(response => {
+            // Cache successful GET responses
+            if (event.request.method === 'GET' && response.status === 200) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+            }
+            return response;
+          }).catch(() => cached); // If fetch fails, return cache (even if stale)
+        })
+      );
+    });
+  `;
+
+  try {
+    const blob   = new Blob([swScript], { type: 'application/javascript' });
+    const swURL  = URL.createObjectURL(blob);
+
+    navigator.serviceWorker.register(swURL, { scope: '/' })
+      .then(reg => {
+        console.info('[P7] Service Worker registered, scope:', reg.scope);
+        // Check for updates every time the page loads
+        reg.update();
+      })
+      .catch(err => {
+        // Blob URL SW registration can fail in some browsers due to opaque origin.
+        // This is non-fatal — the app still works normally.
+        console.info('[P7] SW registration skipped (blob origin restriction):', err.message);
+      });
+  } catch(e) {
+    console.info('[P7] SW setup error (non-fatal):', e.message);
+  }
+}
+
+// =============================================================================
+// [P7-F5]  PWA — INSTALL PROMPT
+// Captures the beforeinstallprompt event and shows the custom install banner.
+// =============================================================================
+let _pwaInstallPrompt = null;
+
+function initPWAInstallPrompt() {
+  // If already installed, never show the banner
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
+  if (localStorage.getItem('pwaDismissed') === 'true') return;
+
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    _pwaInstallPrompt = e;
+    // Show install banner after a short delay so it doesn't fight page load
+    setTimeout(() => {
+      const bar = document.getElementById('pwaInstallBar');
+      if (bar) bar.style.display = 'flex';
+    }, 3000);
+  });
+
+  // Hide banner if app gets installed from outside our banner
+  window.addEventListener('appinstalled', () => {
+    pwaDismiss();
+    showToast('✅ Quest Ledger installed!', 'success');
+  });
+}
+
+function pwaTriggerInstall() {
+  if (!_pwaInstallPrompt) return;
+  _pwaInstallPrompt.prompt();
+  _pwaInstallPrompt.userChoice.then(choice => {
+    if (choice.outcome === 'accepted') {
+      showToast('⚔️ Quest Ledger installed!', 'success');
+    }
+    pwaDismiss();
+    _pwaInstallPrompt = null;
+  });
+}
+
+function pwaDismiss() {
+  const bar = document.getElementById('pwaInstallBar');
+  if (bar) bar.style.display = 'none';
+  localStorage.setItem('pwaDismissed', 'true');
+}
+
+// =============================================================================
+// [P7-F5]  OFFLINE DETECTION
+// Shows a red pill banner when the device loses connectivity.
+// Hides it (and triggers a sync) when connectivity returns.
+// Works alongside Firebase's own offline persistence.
+// =============================================================================
+function initOfflineDetection() {
+  const pill = document.getElementById('offlinePill');
+  if (!pill) return;
+
+  function onOffline() {
+    pill.classList.add('visible');
+    setSyncStatus('offline');
+  }
+  function onOnline() {
+    pill.classList.remove('visible');
+    setSyncStatus('syncing');
+    // Firebase persistence will flush queued writes automatically.
+    // We also trigger a manual sync for belt-and-suspenders.
+    syncToCloud();
+    showToast('🌐 Back online — syncing…', 'success');
+  }
+
+  window.addEventListener('offline', onOffline);
+  window.addEventListener('online',  onOnline);
+
+  // Set initial state
+  if (!navigator.onLine) onOffline();
+}
+
+// =============================================================================
+// LOAD STATE
+// =============================================================================
+function loadState(){
+  const saved=localStorage.getItem('questLedgerData');
+  if(saved){
+    try{
+      const parsed=JSON.parse(saved);
+      state={...state,...parsed};
+      if(!state.goalContributions) state.goalContributions=[];
+      if(!state.budgets) state.budgets={};
+      if(!state.achievements) state.achievements=[];
+      if(!state.settings.quickLogs || !Array.isArray(state.settings.quickLogs) || !state.settings.quickLogs.length) {
+        state.settings.quickLogs = DEFAULT_QUICK_LOGS;
+      }
+      // Migrate old object-based players {p1:{...}, p2:{...}} to array
+      if(!Array.isArray(state.players)){
+        const old = state.players;
+        const s   = state.settings;
+        state.players = [
+          { id:'p1', name: s.p1Name||old.p1?.name||'Husband', avatar: s.p1Avatar||'⚔️', xp: old.p1?.xp||0, level: old.p1?.level||1, txns: old.p1?.txns||0 },
+          { id:'p2', name: s.p2Name||old.p2?.name||'Wife',    avatar: s.p2Avatar||'🛡️', xp: old.p2?.xp||0, level: old.p2?.level||1, txns: old.p2?.txns||0 }
+        ];
+      }
+    }catch(e){ console.warn('Could not load saved state'); }
+  }
+}
+
+function init(){
+  loadState();
+  applyStoredTheme();
+
+  // Populate category dropdowns
+  const catHtml=Object.entries(CATEGORIES).map(([k,v])=>`<option value="${k}">${v.icon} ${v.name}</option>`).join('');
+  document.getElementById('txnCategory').innerHTML=catHtml;
+
+  // Populate category filter dropdown
+  const filterCat=document.getElementById('txnFilterCat');
+  filterCat.innerHTML='<option value="">All Categories</option>'+catHtml;
+
+  // Player filter dropdown — built dynamically from state.players
+  const filterPlayer=document.getElementById('txnFilterPlayer');
+  filterPlayer.innerHTML='<option value="">All Players</option>'+
+    state.players.map(p=>`<option value="${p.id}">${p.avatar} ${escapeHtml(p.name)}</option>`).join('');
+
+  // Set today's date
+  document.getElementById('txnDate').value=new Date().toISOString().slice(0,10);
+
+  // Form submit
+  document.getElementById('questForm').addEventListener('submit',e=>{ e.preventDefault(); submitTransaction(); });
+
+  // Cloud listener (no-op when FIREBASE_ENABLED=false)
+  startCloudListener();
+
+  // [P2-F11] Initialise voice recognition (hides mic if unsupported)
+  initVoice();
+
+  // [P7-F5] PWA setup — manifest, service worker, install prompt, offline detection
+  injectPWAManifest();
+  registerServiceWorker();
+  initPWAInstallPrompt();
+  initOfflineDetection();
+
+  // [P6-F8] Show skeletons on first load (min 200ms visible per spec)
+  showSkeleton('hpBars',       'hpbars');
+  showSkeleton('spendingChart','chart');
+  showSkeleton('trendChart',   'chart');
+  showSkeleton('txnList',      'list');
+
+  renderAll();
+  renderPrefillHints(); // [P2-F14] show hints immediately on load
+  renderInsights();     // [P4-F1] show insights immediately on load
+  renderStory();        // [P4-F4] render story banner on load
+  renderSimulator();    // [P4-F13] render simulator on load
+
+  // [P6-F8] Hide first-load skeletons after minimum visible time
+  setTimeout(() => {
+    hideSkeleton('hpBars');
+    hideSkeleton('spendingChart');
+    hideSkeleton('trendChart');
+    hideSkeleton('txnList');
+  }, 220);
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
