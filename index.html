@@ -1235,30 +1235,31 @@ let syncEnabled = true, syncTimeout = null;
 let _cloudListenerActive = false; // prevent duplicate listeners on hot-reload
 
 try {
-  // Guard against double-init in dev environments
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
+  if (FIREBASE_ENABLED) {
+    // Guard against double-init in dev environments
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    db   = firebase.firestore();
+    auth = firebase.auth();
+
+    // Enable Firestore offline persistence so the app keeps working
+    // even when the device temporarily loses internet.
+    // Note: only one tab can hold persistence at a time — that's fine for this app.
+    db.enablePersistence()
+      .catch(err => {
+        // FAILED_PRECONDITION: another tab already holds persistence — harmless
+        // UNIMPLEMENTED: browser doesn't support IndexedDB — graceful fallback
+        if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
+          console.warn('Firestore persistence error:', err);
+        }
+      });
+
+    // Sign in anonymously — each browser session gets its own UID
+    // but all sessions write to the SAME shared document, so both
+    // devices stay in sync automatically.
+    auth.signInAnonymously().catch(err => console.warn('Auth error:', err));
   }
-  db   = firebase.firestore();
-  auth = firebase.auth();
-
-  // Enable Firestore offline persistence so the app keeps working
-  // even when the device temporarily loses internet.
-  // Note: only one tab can hold persistence at a time — that's fine for this app.
-  db.enablePersistence()
-    .catch(err => {
-      // FAILED_PRECONDITION: another tab already holds persistence — harmless
-      // UNIMPLEMENTED: browser doesn't support IndexedDB — graceful fallback
-      if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
-        console.warn('Firestore persistence error:', err);
-      }
-    });
-
-  // Sign in anonymously — each browser session gets its own UID
-  // but all sessions write to the SAME shared document, so both
-  // devices stay in sync automatically.
-  auth.signInAnonymously().catch(err => console.warn('Auth error:', err));
-
 } catch(e) {
   console.warn('Firebase init failed — running in offline-only mode:', e);
 }
@@ -1882,7 +1883,6 @@ function submitTransaction() {
   updateStreak(date);
   AudioEngine.coin();
 
-  recentPulsedCategories.push(category);
   saveState();
   renderAll();
   pulseHpBarIcon(category);
