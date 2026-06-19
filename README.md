@@ -2,7 +2,7 @@
 
 Quest Ledger is a gamified, co-operative budgeting Progressive Web Application (PWA) designed like a multiplayer Role-Playing Game (RPG). It turns financial tracking into cooperative quests where players manage spending together to maintain "Budget HP", gain "XP", level up, and unlock achievements.
 
-The entire application is self-contained in a single, high-fidelity HTML file: [quest-ledger-players-1.html](file:///d:/repos/quest-ledger/quest-ledger-players-1.html).
+The entire application is self-contained in a single, high-fidelity HTML file: [index.html](file:///d:/repos/quest-ledger/index.html).
 
 ---
 
@@ -40,11 +40,11 @@ The entire application is self-contained in a single, high-fidelity HTML file: [
 
 ### 1. Opening the App
 Because Quest Ledger is built as a single-page app, you can run it in two ways:
-* **Double-click**: Open [quest-ledger-players-1.html](file:///d:/repos/quest-ledger/quest-ledger-players-1.html) directly in any modern web browser.
+* **Double-click**: Open [index.html](file:///d:/repos/quest-ledger/index.html) directly in any modern web browser.
 * **Local Development Server**: To test PWA features and service worker caching properly, run a local server (e.g., using `npx serve` or Live Server extension).
 
 ### 2. Configuration & Firebase Sync
 Cloud sync is configured by default using Firebase credentials. If you wish to configure your own database:
-1. Open [quest-ledger-players-1.html](file:///d:/repos/quest-ledger/quest-ledger-players-1.html).
+1. Open [index.html](file:///d:/repos/quest-ledger/index.html).
 2. Locate the `firebaseConfig` object inside the `<script>` block.
 3. Replace the placeholder fields with your own Firebase/Firestore credentials.
